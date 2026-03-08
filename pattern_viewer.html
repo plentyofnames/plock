@@ -1765,7 +1765,7 @@
       const noteEffective = noteLocked ? (noteRaw & 0x7F) : defNote;
       body.appendChild(makeParamRow('NOTE', noteVal, noteLocked, {
         min: 0, max: 128, rawVal: noteRawVal, initVal: noteEffective,
-        displayFn: (v) => v >= 128 ? midiNoteToName(defNote) : midiNoteToName(v),
+        displayFn: (v) => v >= 128 ? 'TRK' : midiNoteToName(v),
         onChange: (v) => {
           if (v >= 128) { writeByte(noteOff, (noteRaw & 0x80) | 0x7F); }
           else { writeByte(noteOff, (noteRaw & 0x80) | (v & 0x7F)); }
@@ -1777,7 +1777,7 @@
       const veloRawVal = veloLocked ? veloRaw : 128;
       body.appendChild(makeParamRow('VELO', veloVal, veloLocked, {
         min: 0, max: 128, rawVal: veloRawVal, initVal: veloLocked ? veloRaw : defVelo,
-        displayFn: (v) => v >= 128 ? defVelo : v,
+        displayFn: (v) => v >= 128 ? 'TRK' : v,
         onChange: (v) => writeByte(veloOff, v >= 128 ? 0xFF : v),
       }));
 
@@ -1786,7 +1786,7 @@
       const lenRawVal = lenLocked ? lenRaw : 128;
       body.appendChild(makeParamRow('LEN', lenVal, lenLocked, {
         min: 0, max: 128, rawVal: lenRawVal, initVal: lenLocked ? lenRaw : defLen,
-        displayFn: (v) => v >= 128 ? noteLenStr(defLen) : noteLenStr(v),
+        displayFn: (v) => v >= 128 ? 'TRK' : noteLenStr(v),
         onChange: (v) => writeByte(lenOff, v >= 128 ? 0xFF : v),
       }));
 
@@ -1958,7 +1958,7 @@
         const ptCapture = pt;  // capture for closure
         body.appendChild(makeParamRow(lbl, displayVal, locked, {
           min: 0, max: 128, rawVal: plRawVal, initVal: plInitVal,
-          displayFn: (v) => v >= 128 ? (kitDef !== null ? kitDef : '?') : v,
+          displayFn: (v) => v >= 128 ? 'TRK' : v,
           onChange: (v) => {
             writePlock(t, ptCapture, s, v >= 128 ? 0xFF : v);
             refreshAfterEdit();

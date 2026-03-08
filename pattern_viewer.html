@@ -444,16 +444,46 @@
     .sp-val.editable:hover {
       background: rgba(255,255,255,0.06);
     }
-    .sp-val input {
-      width: 44px;
+    /* Slider + number editor row */
+    .sp-editor {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 160px;
+    }
+    .sp-editor input[type="range"] {
+      flex: 1;
+      height: 3px;
+      min-width: 80px;
+      accent-color: #cc44aa;
+      cursor: pointer;
+    }
+    .sp-editor input[type="number"] {
+      width: 42px;
       background: #0a0a0a;
-      color: inherit;
-      border: 1px solid #cc44aa;
+      color: var(--fg);
+      border: 1px solid #334;
       border-radius: 1px;
       font: inherit;
-      font-size: inherit;
-      padding: 0 2px;
+      font-size: 0.9em;
+      padding: 1px 3px;
       outline: none;
+      text-align: right;
+      -moz-appearance: textfield;
+    }
+    .sp-editor input[type="number"]:focus {
+      border-color: #cc44aa;
+    }
+    .sp-editor input[type="number"]::-webkit-inner-spin-button,
+    .sp-editor input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .sp-editor .sp-disp {
+      font-size: 0.85em;
+      color: #889;
+      min-width: 24px;
+      white-space: nowrap;
     }
 
     /* SYN/SMP/ENV/LFO flag row inside TRIG section */
@@ -1965,44 +1995,91 @@
       if (opts) {
         const { min, max, rawVal, onChange, displayFn } = opts;
 
-        // ── Scroll-wheel: inc/dec value ──
-        v.addEventListener('wheel', (e) => {
-          e.preventDefault();
-          const step = e.shiftKey ? 10 : 1;
-          const dir  = e.deltaY < 0 ? 1 : -1;
-          const nv   = Math.max(min, Math.min(max, rawVal + dir * step));
-          if (nv !== rawVal) onChange(nv);
-        }, { passive: false });
-
-        // ── Click: inline input ──
+        // ── Click: expand to slider + number input ──
         v.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (v.querySelector('input')) return;
-          const inp = document.createElement('input');
-          inp.type  = 'number';
-          inp.min   = min;
-          inp.max   = max;
-          inp.value = rawVal;
+          if (v.querySelector('.sp-editor')) return;
+
+          const editor = document.createElement('div');
+          editor.className = 'sp-editor';
+
+          const slider = document.createElement('input');
+          slider.type = 'range';
+          slider.min  = min;
+          slider.max  = max;
+          slider.value = rawVal;
+
+          const numInp = document.createElement('input');
+          numInp.type  = 'number';
+          numInp.min   = min;
+          numInp.max   = max;
+          numInp.value = rawVal;
+
+          const disp = document.createElement('span');
+          disp.className = 'sp-disp';
+          if (displayFn) disp.textContent = displayFn(rawVal);
+
+          editor.appendChild(slider);
+          editor.appendChild(numInp);
+          if (displayFn) editor.appendChild(disp);
+
           v.textContent = '';
-          v.appendChild(inp);
-          inp.select();
-          inp.focus();
+          v.appendChild(editor);
+          numInp.focus();
+          numInp.select();
+
+          let curVal = rawVal;
+          const updateDisp = (nv) => {
+            curVal = nv;
+            if (displayFn) disp.textContent = displayFn(nv);
+          };
+
+          // Slider drag → update number + display in real-time
+          slider.addEventListener('input', () => {
+            const sv = parseInt(slider.value, 10);
+            numInp.value = sv;
+            updateDisp(sv);
+          });
+
+          // Number input → update slider + display
+          numInp.addEventListener('input', () => {
+            const nv = parseInt(numInp.value, 10);
+            if (!isNaN(nv)) {
+              slider.value = Math.max(min, Math.min(max, nv));
+              updateDisp(Math.max(min, Math.min(max, nv)));
+            }
+          });
 
           const commit = () => {
-            const parsed = parseInt(inp.value, 10);
+            const parsed = parseInt(numInp.value, 10);
             if (!isNaN(parsed)) {
               const clamped = Math.max(min, Math.min(max, parsed));
               if (clamped !== rawVal) { onChange(clamped); return; }
             }
-            // Restore display if unchanged or invalid
+            // Restore display if unchanged
             v.textContent = displayFn ? displayFn(rawVal) : val;
           };
-          inp.addEventListener('keydown', (ke) => {
+
+          // Slider release → commit
+          slider.addEventListener('change', () => {
+            const sv = parseInt(slider.value, 10);
+            const clamped = Math.max(min, Math.min(max, sv));
+            if (clamped !== rawVal) { onChange(clamped); return; }
+            v.textContent = displayFn ? displayFn(rawVal) : val;
+          });
+
+          numInp.addEventListener('keydown', (ke) => {
             if (ke.key === 'Enter')  { ke.preventDefault(); commit(); }
-            if (ke.key === 'Escape') { ke.preventDefault(); v.textContent = val; }
+            if (ke.key === 'Escape') { ke.preventDefault(); v.textContent = displayFn ? displayFn(rawVal) : val; }
             ke.stopPropagation();
           });
-          inp.addEventListener('blur', commit);
+
+          // Blur on number input → commit (but not if focus moved to slider)
+          numInp.addEventListener('blur', (be) => {
+            setTimeout(() => {
+              if (!editor.contains(document.activeElement)) commit();
+            }, 0);
+          });
         });
       }
 

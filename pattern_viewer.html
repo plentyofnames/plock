@@ -1875,7 +1875,7 @@
       // VEL: -128..+127, stored as unsigned byte interpreted as signed
       const velOff = trackBase + RETRIG_VELO_OFFSET + s;
       body.appendChild(makeParamRow('VEL', velStr, isRetrig && velSigned !== 0, {
-        min: -128, max: 127, rawVal: velSigned,
+        min: -128, max: 127, rawVal: velSigned, snap: 0,
         displayFn: (v) => (v >= 0 ? '+' : '') + v,
         onChange: (v) => {
           lastRaw[velOff] = v < 0 ? v + 256 : v;
@@ -2042,7 +2042,7 @@
           // Slider drag → update number + display in real-time
           slider.addEventListener('input', () => {
             let sv = parseInt(slider.value, 10);
-            if (hasSnap && Math.abs(sv - snap) <= 2) { sv = snap; slider.value = sv; }
+            if (hasSnap && Math.abs(sv - snap) <= 1) { sv = snap; slider.value = sv; }
             numInp.value = sv;
             updateDisp(sv);
           });

@@ -1800,7 +1800,7 @@
       const utimeStr    = (microSigned > 0 ? '+' : '') + microSigned;
       const utimeDispFn = (v) => (v > 0 ? '+' : '') + v;
       body.appendChild(makeParamRow('UTIME', utimeStr, microSigned !== 0, {
-        min: -23, max: 23, rawVal: microSigned, displayFn: utimeDispFn,
+        min: -23, max: 23, rawVal: microSigned, displayFn: utimeDispFn, snap: 0,
         onChange: (v) => {
           // Encode signed value into 6-bit field, preserve upper 2 bits
           const enc = v < 0 ? (v + 64) & 0x3F : v & 0x3F;
@@ -1996,8 +1996,9 @@
       row.appendChild(v);
 
       if (opts) {
-        const { min, max, rawVal, onChange, displayFn, initVal } = opts;
+        const { min, max, rawVal, onChange, displayFn, initVal, snap } = opts;
         const startVal = initVal !== undefined ? initVal : rawVal;
+        const hasSnap  = snap !== undefined;
 
         // ── Click: expand to slider + number input ──
         v.addEventListener('click', (e) => {
@@ -2040,7 +2041,8 @@
 
           // Slider drag → update number + display in real-time
           slider.addEventListener('input', () => {
-            const sv = parseInt(slider.value, 10);
+            let sv = parseInt(slider.value, 10);
+            if (hasSnap && Math.abs(sv - snap) <= 2) { sv = snap; slider.value = sv; }
             numInp.value = sv;
             updateDisp(sv);
           });

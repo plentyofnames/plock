@@ -95,6 +95,13 @@
       min-height: 1em;
     }
     #pattern-meta span { color: var(--fg); }
+    .meta-val.editable { cursor: pointer; padding: 0 3px; border-radius: 1px; }
+    .meta-val.editable:hover { background: rgba(255,255,255,0.08); }
+    .meta-input {
+      width: 48px; background: #0a0a0a; border: 1px solid var(--accent);
+      color: var(--fg); font-family: inherit; font-size: 1em;
+      padding: 1px 3px; outline: none; border-radius: 1px;
+    }
 
     /* Grid */
     #grid-wrap { overflow-x: auto; padding-bottom: 8px; }
@@ -156,6 +163,38 @@
       font-size: 0.72em;
       color: #555;
     }
+    .track-defaults {
+      display: flex;
+      gap: 3px;
+      font-size: 0.75em;
+      color: #555;
+      letter-spacing: 0;
+    }
+    .track-defaults .td-val {
+      cursor: pointer;
+      padding: 0 1px;
+      border-radius: 1px;
+    }
+    .track-defaults .td-val:hover { color: var(--fg); }
+    .track-defaults .td-input {
+      width: 30px; background: #0a0a0a; border: 1px solid var(--accent);
+      color: var(--fg); font-family: inherit; font-size: 1em;
+      padding: 0 2px; outline: none; border-radius: 1px;
+    }
+    .track-flags {
+      display: flex;
+      gap: 2px;
+      font-size: 0.68em;
+      letter-spacing: 0;
+    }
+    .track-flags .tf {
+      cursor: pointer;
+      padding: 0 1px;
+      border-radius: 1px;
+      color: #333;
+    }
+    .track-flags .tf.on { color: #e05a00; }
+    .track-flags .tf:hover { color: var(--fg); }
     .track-steps {
       display: flex;
       gap: var(--group-gap);
@@ -508,6 +547,7 @@
     <button id="btn-refresh" disabled>Request Pattern</button>
     <button id="btn-load-syx">Load .syx</button>
     <button id="btn-save-syx" disabled>Save .syx</button>
+    <button id="btn-send" disabled>Send to AR</button>
     <input type="file" id="syx-file" accept=".syx" hidden>
     <div id="status">Not connected</div>
   </div>
@@ -753,6 +793,7 @@
     let soundPoolSyx = new Map();      // slot (0-127) → original sysex bytes (for saving)
     let pendingSoundReqs = new Set();  // slot numbers awaiting response
     let savePending  = false;          // true while waiting for full pool before saving
+    let lastPatName  = '';             // pattern name for meta display
 
     // ─── UI refs ──────────────────────────────────────────────────────────────
 
@@ -760,6 +801,7 @@
     const btnRefresh  = document.getElementById('btn-refresh');
     const btnLoadSyx  = document.getElementById('btn-load-syx');
     const btnSaveSyx  = document.getElementById('btn-save-syx');
+    const btnSend     = document.getElementById('btn-send');
     const syxFileIn   = document.getElementById('syx-file');
     const btnPage0    = document.getElementById('btn-page0');
     const btnPage1    = document.getElementById('btn-page1');
@@ -885,6 +927,23 @@
       setStatus('Saved ' + parts.length + ' sysex messages', 'ok');
     }
 
+    // ─── Send pattern to AR workbuffer ──────────────────────────────────────
+
+    btnSend.addEventListener('click', () => {
+      if (!rytmOutput || !lastRaw || !lastSyxMeta) return;
+      // Force workbuffer dump ID regardless of how pattern was loaded
+      const meta = Object.assign({}, lastSyxMeta, {
+        dumpId: AR_SYSEX_DUMPX_ID_PATTERN
+      });
+      const syx = buildSysexMessage(lastRaw, meta);
+      rytmOutput.send(syx);
+      setStatus('Pattern sent to workbuffer (' + syx.length + ' bytes)', 'ok');
+    });
+
+    function updateSendBtn() {
+      btnSend.disabled = !(rytmOutput && lastRaw);
+    }
+
     function findPorts() {
       rytmInput  = null;
       rytmOutput = null;
@@ -913,6 +972,7 @@
         setStatus('Analog Rytm not found — connect the device and try again.', 'err');
         btnRefresh.disabled = true;
       }
+      updateSendBtn();
     }
 
     btnPage0.addEventListener('click', () => {
@@ -1028,29 +1088,15 @@
         return;
       }
 
-      const kitNum    = raw.length > KIT_NUMBER_OFFSET    ? raw[KIT_NUMBER_OFFSET]   : 0xFF;
-      const kitStr    = (kitNum === 0xFF) ? '—' : String(kitNum + 1).padStart(2, '0');
-      const bpmRaw    = raw.length > BPM_LSB_OFFSET
-        ? (raw[BPM_MSB_OFFSET] << 8) | raw[BPM_LSB_OFFSET] : 0;
-      const bpmStr    = bpmRaw ? (bpmRaw / 120).toFixed(1) : '—';
-      const swingAmt  = raw.length > SWING_AMOUNT_OFFSET  ? raw[SWING_AMOUNT_OFFSET] : 0;
-      const masterLen = raw.length > MASTER_LENGTH_OFFSET + 1
-        ? raw[MASTER_LENGTH_OFFSET] | (raw[MASTER_LENGTH_OFFSET + 1] << 8) : 0;
-      const masterStr = (masterLen === 0 || masterLen > 128) ? 'INF' : masterLen;
-
-      metaEl.innerHTML =
-        'Pattern: <span>' + patName + '</span> &ensp;' +
-        'Kit: <span>'     + kitStr  + '</span> &ensp;' +
-        'BPM: <span>'     + bpmStr  + '</span> &ensp;' +
-        'Swing: <span>'   + (50 + swingAmt) + '%</span> &ensp;' +
-        'Master: <span>'  + masterStr + '</span>';
-
       lastRaw = raw;
+      lastPatName = patName;
+      renderMeta();
       lastSyxMeta = {
         devId: syx[5], dumpId: syx[6],
         verHi: syx[7], verLo: syx[8], objNr: syx[9]
       };
       btnSaveSyx.disabled = false;
+      updateSendBtn();
       soundPool.clear();
       soundPoolSyx.clear();
       pendingSoundReqs.clear();
@@ -1332,6 +1378,99 @@
           machSpan.textContent = MACHINE_NAMES[machType];
           label.appendChild(machSpan);
         }
+
+        // ── Track defaults (note, velocity, length) ──
+        const defNote = raw[trackBase + DEFAULT_NOTE_OFFSET];
+        const defVelo = raw[trackBase + DEFAULT_VELOCITY_OFFSET];
+        const defLen  = raw[trackBase + DEFAULT_NOTE_LEN_OFFSET];
+
+        const defsRow = document.createElement('span');
+        defsRow.className = 'track-defaults';
+
+        const makeDefVal = (text, editVal, min, max, onChange) => {
+          const sp = document.createElement('span');
+          sp.className = 'td-val';
+          sp.textContent = text;
+          sp.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (sp.querySelector('input')) return;
+            const inp = document.createElement('input');
+            inp.type = 'number';
+            inp.className = 'td-input';
+            inp.min = min; inp.max = max;
+            inp.value = editVal;
+            sp.textContent = '';
+            sp.appendChild(inp);
+            inp.focus();
+            inp.select();
+            let done = false;
+            const commit = () => {
+              if (done) return;
+              done = true;
+              const n = parseInt(inp.value, 10);
+              if (!isNaN(n)) onChange(Math.max(min, Math.min(max, n)));
+              refreshAfterEdit();
+            };
+            const cancel = () => {
+              if (done) return;
+              done = true;
+              sp.textContent = text;
+            };
+            inp.addEventListener('keydown', (ke) => {
+              if (ke.key === 'Enter')  { ke.preventDefault(); commit(); }
+              if (ke.key === 'Escape') { ke.preventDefault(); cancel(); }
+              ke.stopPropagation();
+            });
+            inp.addEventListener('blur', () => {
+              setTimeout(() => { if (!done) commit(); }, 0);
+            });
+          });
+          return sp;
+        };
+
+        defsRow.appendChild(makeDefVal(
+          midiNoteToName(defNote), defNote, 0, 127,
+          (v) => { raw[trackBase + DEFAULT_NOTE_OFFSET] = v; }
+        ));
+        defsRow.appendChild(makeDefVal(
+          String(defVelo), defVelo, 0, 127,
+          (v) => { raw[trackBase + DEFAULT_VELOCITY_OFFSET] = v; }
+        ));
+        defsRow.appendChild(makeDefVal(
+          noteLenStr(defLen), defLen, 0, 127,
+          (v) => { raw[trackBase + DEFAULT_NOTE_LEN_OFFSET] = v; }
+        ));
+        label.appendChild(defsRow);
+
+        // ── Default trig flags (SYN/SMP/ENV/LFO) ──
+        const defFlagsHi = raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET];
+        const defFlagsLo = raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET + 1];
+        const defFlags   = (defFlagsHi << 8) | defFlagsLo;
+
+        const flagsRow = document.createElement('span');
+        flagsRow.className = 'track-flags';
+        const defFlagDefs = [
+          { lbl: 'SY', name: 'SYN', bit: AR_TRIG_SYN_PL_SW },
+          { lbl: 'SM', name: 'SMP', bit: AR_TRIG_SMP_PL_SW },
+          { lbl: 'EN', name: 'ENV', bit: AR_TRIG_ENV_PL_SW },
+          { lbl: 'LF', name: 'LFO', bit: AR_TRIG_LFO_PL_SW },
+        ];
+        for (const f of defFlagDefs) {
+          const el = document.createElement('span');
+          el.className = 'tf' + ((defFlags & f.bit) ? ' on' : '');
+          el.textContent = f.lbl;
+          el.title = 'Default ' + f.name + ((defFlags & f.bit) ? ' ON' : ' OFF');
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const newFlags = defFlags ^ f.bit;
+            raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET]     = (newFlags >> 8) & 0xFF;
+            raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET + 1] = newFlags & 0xFF;
+            refreshAfterEdit();
+          });
+          flagsRow.appendChild(el);
+        }
+        label.appendChild(flagsRow);
+
         row.appendChild(label);
 
         // ── Steps outer ──
@@ -1477,6 +1616,11 @@
               const curOn     = (curFlags & AR_TRIG_ENABLE) !== 0;
               const SYN_SMP   = AR_TRIG_SYN_PL_SW | AR_TRIG_SMP_PL_SW;
 
+              // Read track's default trig flags (s_u16_t, big-endian)
+              const dtfHi = lastRaw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET];
+              const dtfLo = lastRaw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET + 1];
+              const defTrigFlags = (dtfHi << 8) | dtfLo;
+
               if (e.shiftKey) {
                 // Shift+click → toggle mute (only meaningful on active trigs)
                 if (curOn) {
@@ -1489,9 +1633,10 @@
               if (e.altKey) {
                 // Alt+click → toggle lock trig
                 if (!curOn) {
-                  // Off → enable as lock trig (clear SYN+SMP, leave ENV/LFO)
+                  // Off → enable as lock trig: use defaults but clear SYN+SMP
+                  const base = curFlags === 0 ? defTrigFlags : curFlags;
                   setTrigFlags(trigBits, stepIdx,
-                    (curFlags | AR_TRIG_ENABLE) & ~SYN_SMP);
+                    (base | AR_TRIG_ENABLE) & ~SYN_SMP);
                 } else if ((curFlags & SYN_SMP) !== 0) {
                   // Normal trig → lock trig (clear SYN+SMP, keep enable)
                   setTrigFlags(trigBits, stepIdx, curFlags & ~SYN_SMP);
@@ -1508,9 +1653,16 @@
                 // On → off: clear enable only, leave other flags
                 setTrigFlags(trigBits, stepIdx, curFlags & ~AR_TRIG_ENABLE);
               } else {
-                // Off → on: set enable, ensure SYN+SMP on if both were off
-                let nf = curFlags | AR_TRIG_ENABLE;
-                if ((nf & SYN_SMP) === 0) nf |= SYN_SMP;
+                // Off → on: use default trig flags for fresh steps
+                let nf;
+                if (curFlags === 0) {
+                  // Fresh step → use track's default trig flags
+                  nf = defTrigFlags | AR_TRIG_ENABLE;
+                } else {
+                  // Had previous flags → restore with ENABLE
+                  nf = curFlags | AR_TRIG_ENABLE;
+                  if ((nf & SYN_SMP) === 0) nf |= SYN_SMP;
+                }
                 setTrigFlags(trigBits, stepIdx, nf);
               }
               refreshAfterEdit();
@@ -1656,8 +1808,130 @@
       return makeSec('FLAGS', body);
     }
 
+    // ─── Pattern metadata display (editable) ─────────────────────────────────
+
+    function renderMeta() {
+      if (!lastRaw) return;
+      const raw = lastRaw;
+      metaEl.textContent = '';
+
+      // Helper: read-only label
+      const addLabel = (lbl, val) => {
+        const s = document.createElement('span');
+        s.innerHTML = lbl + ': <span>' + val + '</span>\u2003';
+        metaEl.appendChild(s);
+      };
+
+      // Helper: editable field
+      const addField = (lbl, displayVal, editVal, onCommit, inputOpts) => {
+        const wrap = document.createElement('span');
+        const label = document.createTextNode(lbl + ': ');
+        const v = document.createElement('span');
+        v.className = 'meta-val editable';
+        v.textContent = displayVal;
+        wrap.appendChild(label);
+        wrap.appendChild(v);
+        wrap.appendChild(document.createTextNode('\u2003'));
+        metaEl.appendChild(wrap);
+
+        v.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (v.querySelector('input')) return;
+          const inp = document.createElement('input');
+          inp.type = 'text';
+          inp.className = 'meta-input';
+          inp.value = editVal;
+          if (inputOpts && inputOpts.width) inp.style.width = inputOpts.width;
+          v.textContent = '';
+          v.appendChild(inp);
+          inp.focus();
+          inp.select();
+
+          let done = false;
+          const commit = () => {
+            if (done) return;
+            done = true;
+            onCommit(inp.value);
+          };
+          const cancel = () => {
+            if (done) return;
+            done = true;
+            v.textContent = displayVal;
+          };
+          inp.addEventListener('keydown', (ke) => {
+            if (ke.key === 'Enter')  { ke.preventDefault(); commit(); }
+            if (ke.key === 'Escape') { ke.preventDefault(); cancel(); }
+            ke.stopPropagation();
+          });
+          inp.addEventListener('blur', () => {
+            setTimeout(() => { if (!done) commit(); }, 0);
+          });
+        });
+      };
+
+      // Pattern name (read-only)
+      addLabel('Pattern', lastPatName);
+
+      // Kit number: 0-127 → 1-128, 0xFF → unassigned
+      const kitNum = raw.length > KIT_NUMBER_OFFSET ? raw[KIT_NUMBER_OFFSET] : 0xFF;
+      const kitStr = (kitNum === 0xFF) ? '—' : String(kitNum + 1).padStart(2, '0');
+      addField('Kit', kitStr, kitNum === 0xFF ? '' : kitNum + 1, (val) => {
+        const n = parseInt(val, 10);
+        if (!isNaN(n) && n >= 1 && n <= 128) {
+          raw[KIT_NUMBER_OFFSET] = n - 1;
+        } else {
+          raw[KIT_NUMBER_OFFSET] = 0xFF;
+        }
+        renderMeta();
+      });
+
+      // BPM: 16-bit BE, rawValue = BPM × 120
+      const bpmRaw = raw.length > BPM_LSB_OFFSET
+        ? (raw[BPM_MSB_OFFSET] << 8) | raw[BPM_LSB_OFFSET] : 0;
+      const bpmStr = bpmRaw ? (bpmRaw / 120).toFixed(1) : '—';
+      addField('BPM', bpmStr, bpmRaw ? (bpmRaw / 120).toFixed(1) : '120.0', (val) => {
+        const bpm = parseFloat(val);
+        if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
+          const rv = Math.round(bpm * 120);
+          raw[BPM_MSB_OFFSET] = (rv >> 8) & 0xFF;
+          raw[BPM_LSB_OFFSET] = rv & 0xFF;
+        }
+        renderMeta();
+      }, { width: '52px' });
+
+      // Swing: raw 0-30, displayed as 50-80%
+      const swingAmt = raw.length > SWING_AMOUNT_OFFSET ? raw[SWING_AMOUNT_OFFSET] : 0;
+      addField('Swing', (50 + swingAmt) + '%', 50 + swingAmt, (val) => {
+        let n = parseInt(val, 10);
+        if (isNaN(n)) n = 50;
+        n = Math.max(50, Math.min(80, n));
+        raw[SWING_AMOUNT_OFFSET] = n - 50;
+        refreshAfterEdit();   // swing affects grid dot visibility
+      }, { width: '36px' });
+
+      // Master length: 16-bit LE, 0 = INF, 1-128 = step count
+      const masterLen = raw.length > MASTER_LENGTH_OFFSET + 1
+        ? raw[MASTER_LENGTH_OFFSET] | (raw[MASTER_LENGTH_OFFSET + 1] << 8) : 0;
+      const masterStr = (masterLen === 0 || masterLen > 128) ? 'INF' : String(masterLen);
+      addField('Master', masterStr, masterStr, (val) => {
+        const upper = val.trim().toUpperCase();
+        let n;
+        if (upper === 'INF' || upper === '0' || upper === '') {
+          n = 0;
+        } else {
+          n = parseInt(val, 10);
+          if (isNaN(n) || n < 1) n = 0;
+          if (n > 128) n = 128;
+        }
+        raw[MASTER_LENGTH_OFFSET]     = n & 0xFF;
+        raw[MASTER_LENGTH_OFFSET + 1] = (n >> 8) & 0xFF;
+        renderMeta();
+      }, { width: '36px' });
+    }
+
     function refreshAfterEdit() {
       const had = openPanel ? { t: openPanel.t, s: openPanel.s } : null;
+      renderMeta();
       renderGrid(lastRaw, stepPage);
       if (had) openStepPanel(had.t, had.s);
     }
@@ -1875,7 +2149,7 @@
       // VEL: -128..+127, stored as unsigned byte interpreted as signed
       const velOff = trackBase + RETRIG_VELO_OFFSET + s;
       body.appendChild(makeParamRow('VEL', velStr, isRetrig && velSigned !== 0, {
-        min: -128, max: 127, rawVal: velSigned, snap: 0,
+        min: -128, max: 127, rawVal: velSigned, snap: 0, snapR: 5,
         displayFn: (v) => (v >= 0 ? '+' : '') + v,
         onChange: (v) => {
           lastRaw[velOff] = v < 0 ? v + 256 : v;
@@ -1999,7 +2273,7 @@
         const { min, max, rawVal, onChange, displayFn, initVal, snap } = opts;
         const startVal = initVal !== undefined ? initVal : rawVal;
         const hasSnap  = snap !== undefined;
-        const snapR    = 2;  // snap dead-band radius in slider positions
+        const snapR    = opts.snapR !== undefined ? opts.snapR : 2;  // snap dead-band radius
 
         // Snap mapping: slider range is extended by 2×snapR so all values
         // remain reachable. Positions within ±snapR of the snap point map

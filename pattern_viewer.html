@@ -1762,8 +1762,10 @@
       // NOTE: edit the 7-bit note value, preserve bit 7 (trig condition flag)
       const noteOff = trackBase + NOTE_OFFSET + s;
       const noteRawVal = noteLocked ? (noteRaw & 0x7F) : 128;
+      const noteEffective = noteLocked ? (noteRaw & 0x7F) : defNote;
       body.appendChild(makeParamRow('NOTE', noteVal, noteLocked, {
-        min: 0, max: 128, rawVal: noteRawVal, displayFn: (v) => v >= 128 ? midiNoteToName(defNote) : midiNoteToName(v),
+        min: 0, max: 128, rawVal: noteRawVal, initVal: noteEffective,
+        displayFn: (v) => v >= 128 ? midiNoteToName(defNote) : midiNoteToName(v),
         onChange: (v) => {
           if (v >= 128) { writeByte(noteOff, (noteRaw & 0x80) | 0x7F); }
           else { writeByte(noteOff, (noteRaw & 0x80) | (v & 0x7F)); }
@@ -1774,7 +1776,7 @@
       const veloOff = trackBase + VELOCITY_OFFSET + s;
       const veloRawVal = veloLocked ? veloRaw : 128;
       body.appendChild(makeParamRow('VELO', veloVal, veloLocked, {
-        min: 0, max: 128, rawVal: veloRawVal,
+        min: 0, max: 128, rawVal: veloRawVal, initVal: veloLocked ? veloRaw : defVelo,
         displayFn: (v) => v >= 128 ? defVelo : v,
         onChange: (v) => writeByte(veloOff, v >= 128 ? 0xFF : v),
       }));
@@ -1783,7 +1785,7 @@
       const lenOff = trackBase + NOTE_LEN_OFFSET + s;
       const lenRawVal = lenLocked ? lenRaw : 128;
       body.appendChild(makeParamRow('LEN', lenVal, lenLocked, {
-        min: 0, max: 128, rawVal: lenRawVal,
+        min: 0, max: 128, rawVal: lenRawVal, initVal: lenLocked ? lenRaw : defLen,
         displayFn: (v) => v >= 128 ? noteLenStr(defLen) : noteLenStr(v),
         onChange: (v) => writeByte(lenOff, v >= 128 ? 0xFF : v),
       }));
@@ -1952,9 +1954,10 @@
         const displayVal = locked ? plVal : (kitDef !== null ? kitDef : '?');
         // Editable: 0-127 = plock value, 128 = clear (use default)
         const plRawVal = locked ? plVal : 128;
+        const plInitVal = locked ? plVal : (kitDef !== null ? kitDef : 0);
         const ptCapture = pt;  // capture for closure
         body.appendChild(makeParamRow(lbl, displayVal, locked, {
-          min: 0, max: 128, rawVal: plRawVal,
+          min: 0, max: 128, rawVal: plRawVal, initVal: plInitVal,
           displayFn: (v) => v >= 128 ? (kitDef !== null ? kitDef : '?') : v,
           onChange: (v) => {
             writePlock(t, ptCapture, s, v >= 128 ? 0xFF : v);
@@ -1993,7 +1996,8 @@
       row.appendChild(v);
 
       if (opts) {
-        const { min, max, rawVal, onChange, displayFn } = opts;
+        const { min, max, rawVal, onChange, displayFn, initVal } = opts;
+        const startVal = initVal !== undefined ? initVal : rawVal;
 
         // ── Click: expand to slider + number input ──
         v.addEventListener('click', (e) => {
@@ -2007,17 +2011,17 @@
           slider.type = 'range';
           slider.min  = min;
           slider.max  = max;
-          slider.value = rawVal;
+          slider.value = startVal;
 
           const numInp = document.createElement('input');
           numInp.type  = 'number';
           numInp.min   = min;
           numInp.max   = max;
-          numInp.value = rawVal;
+          numInp.value = startVal;
 
           const disp = document.createElement('span');
           disp.className = 'sp-disp';
-          if (displayFn) disp.textContent = displayFn(rawVal);
+          if (displayFn) disp.textContent = displayFn(startVal);
 
           editor.appendChild(slider);
           editor.appendChild(numInp);

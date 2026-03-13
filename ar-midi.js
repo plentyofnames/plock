@@ -102,7 +102,9 @@ function handleSysex(syx) {
   // ── Kit dump ──────────────────────────────────────────────────────────
   if (dumpId === AR_SYSEX_DUMPX_ID_KIT || dumpId === AR_SYSEX_DUMP_ID_KIT) {
     let raw;
-    try { raw = decodeSysex7to8(syx); } catch (e) { return; }
+    try { raw = decodeSysex7to8(syx); } catch (e) {
+      setStatus('Kit decode error: ' + e.message, 'err'); return;
+    }
     S.lastKit = raw;
     S.lastKitSyx = syx.slice();
     // Re-render grid to show machine names, and update open panels
@@ -115,7 +117,9 @@ function handleSysex(syx) {
   // ── Sound pool dump ──────────────────────────────────────────────────
   if (dumpId === AR_SYSEX_DUMP_ID_SOUND) {
     let raw;
-    try { raw = decodeSysex7to8(syx); } catch (e) { return; }
+    try { raw = decodeSysex7to8(syx); } catch (e) {
+      setStatus('Sound decode error: ' + e.message, 'err'); return;
+    }
     const slotNr = syx[9];
     S.soundPool.set(slotNr, raw);
     S.soundPoolSyx.set(slotNr, syx.slice());

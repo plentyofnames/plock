@@ -14,10 +14,10 @@ note/micro-timing/speed/retrig bit masks, trig condition encoding helpers,
 ~70+ hex literals replaced across `ar-sysex.js`, `ar-midi.js`, `ar-editor.js`.
 Python test generator cross-references JS constant names.
 
-### 3. Silent error swallowing
-- Kit decode errors (ar-midi.js `handleSysex`) silently return — add `setStatus` call
-- Sound pool decode errors also silently return — add `setStatus` call
-- Pattern decode properly reports errors; make kit/sound match that pattern
+### 3. ~~Silent error swallowing~~ ✅
+Kit and sound pool decode errors now report via `setStatus`. Added persistent
+log panel: `AR.setStatus` accumulates timestamped entries in `AR.log[]`, "Show
+Log" button at bottom with error badge, scrollable panel with live updates.
 
 ### 4. Global mutable state
 - 19 global `let` variables are now in `AR.state` but still mutated from everywhere

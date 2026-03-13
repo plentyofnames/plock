@@ -578,3 +578,36 @@ button:disabled { opacity: 0.35; cursor: default; }
   min-width: 26px;
   font-size: 0.63em;
 }
+
+/* ─── Log panel ──────────────────────────────────────────────────────────── */
+.log-toggle {
+  display: block;
+  margin: 18px 0 4px;
+  font-size: 0.75em;
+  padding: 4px 12px;
+  position: relative;
+}
+.log-toggle.log-has-errors::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d9534f;
+}
+.log-panel {
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 6px 10px;
+  margin-bottom: 18px;
+  font-size: 0.72em;
+  line-height: 1.5;
+}
+.log-entry     { color: var(--muted); white-space: pre; }
+.log-entry.ok  { color: #5cb85c; }
+.log-entry.err { color: #d9534f; }

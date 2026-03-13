@@ -40,10 +40,62 @@ AR.initUI = function() {
   AR.ui.portInfoEl  = document.getElementById('port-info');
   AR.ui.metaEl      = document.getElementById('pattern-meta');
   AR.ui.gridEl      = document.getElementById('grid');
+  AR.ui.btnLog      = document.getElementById('btn-log');
+  AR.ui.logPanel    = document.getElementById('log-panel');
+
+  // ── Log panel toggle ────────────────────────────────────────────────────
+  AR.ui.btnLog.addEventListener('click', function() {
+    var panel = AR.ui.logPanel;
+    var open  = panel.hidden;
+    panel.hidden = !open;
+    AR.ui.btnLog.textContent = open ? 'Hide Log' : 'Show Log';
+    if (open) {
+      // Populate panel from log history and clear badge
+      AR.ui.btnLog.classList.remove('log-has-errors');
+      AR._unreadErrors = 0;
+      panel.innerHTML = '';
+      for (var i = 0; i < AR.log.length; i++) {
+        panel.appendChild(AR._makeLogEntry(AR.log[i]));
+      }
+      panel.scrollTop = panel.scrollHeight;
+    }
+  });
+};
+
+// ─── Log accumulator ─────────────────────────────────────────────────────────
+var LOG_MAX = 200;
+AR.log = [];
+AR._unreadErrors = 0;
+
+AR._makeLogEntry = function(entry) {
+  var div = document.createElement('div');
+  div.className = 'log-entry' + (entry.cls ? ' ' + entry.cls : '');
+  div.textContent = entry.ts + '  ' + entry.msg;
+  return div;
 };
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────
 AR.setStatus = function(msg, cls) {
+  // Update inline status bar
   AR.ui.statusEl.textContent = msg;
   AR.ui.statusEl.className   = cls || '';
+
+  // Append to log history
+  var now = new Date();
+  var ts  = ('0' + now.getHours()).slice(-2) + ':' +
+            ('0' + now.getMinutes()).slice(-2) + ':' +
+            ('0' + now.getSeconds()).slice(-2);
+  var entry = { ts: ts, msg: msg, cls: cls || '' };
+  AR.log.push(entry);
+  if (AR.log.length > LOG_MAX) AR.log.shift();
+
+  // If log panel is open, append live; otherwise badge on errors
+  var panel = AR.ui.logPanel;
+  if (panel && !panel.hidden) {
+    panel.appendChild(AR._makeLogEntry(entry));
+    panel.scrollTop = panel.scrollHeight;
+  } else if (cls === 'err') {
+    AR._unreadErrors++;
+    if (AR.ui.btnLog) AR.ui.btnLog.classList.add('log-has-errors');
+  }
 };

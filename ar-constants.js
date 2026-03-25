@@ -1,3 +1,13 @@
+    // ─── Byte read/write helpers ────────────────────────────────────────────
+    // Bounds-checked accessors that replace repeated inline boilerplate.
+
+    function readU8(arr, off)         { return off < arr.length ? arr[off] : 0; }
+    function readU16BE(arr, off)      { return off + 1 < arr.length ? (arr[off] << 8) | arr[off + 1] : 0; }
+    function writeU8(arr, off, val)   { if (off < arr.length) arr[off] = val & 0xFF; }
+    function writeU16BE(arr, off, val){
+      if (off + 1 < arr.length) { arr[off] = (val >> 8) & 0xFF; arr[off + 1] = val & 0xFF; }
+    }
+
     // ─── Constants from libanalogrytm/sysex.h and pattern.h ──────────────────
 
     const AR_PRODUCT_ID              = 0x07;
@@ -187,6 +197,40 @@
     const MASTER_SPEED_OFFSET        = 0x3328;  // 0=2x,1=3/2x,2=1x,3=3/4x,4=1/2x,5=1/4x,6=1/8x
     const BPM_MSB_OFFSET             = 0x332A;
     const BPM_LSB_OFFSET             = 0x332B;
+
+    // ─── Struct schemas ────────────────────────────────────────────────────
+    // Declarative layout descriptors for self-documenting access and validation.
+    // type: 'u8' = single byte, 'u16be' = big-endian 16-bit,
+    //       'u8[]' = byte array (sz = element count), 'bitstream' = packed bits
+
+    const TRACK_FIELDS = {
+      trigBits:        { off: TRIG_BITS_OFFSET,         sz: 112, type: 'bitstream' },
+      notes:           { off: NOTE_OFFSET,              sz: 64,  type: 'u8[]' },
+      velocities:      { off: VELOCITY_OFFSET,          sz: 64,  type: 'u8[]' },
+      noteLengths:     { off: NOTE_LEN_OFFSET,          sz: 64,  type: 'u8[]' },
+      microTimings:    { off: MICRO_TIMING_OFFSET,      sz: 64,  type: 'u8[]' },
+      retrigLengths:   { off: RETRIG_LENGTH_OFFSET,     sz: 64,  type: 'u8[]' },
+      retrigRates:     { off: RETRIG_RATE_OFFSET,       sz: 64,  type: 'u8[]' },
+      retrigVelo:      { off: RETRIG_VELO_OFFSET,       sz: 64,  type: 'u8[]' },
+      soundLocks:      { off: SOUND_LOCK_OFFSET,        sz: 64,  type: 'u8[]' },
+      defaultNote:     { off: DEFAULT_NOTE_OFFSET,      sz: 1,   type: 'u8' },
+      defaultVelocity: { off: DEFAULT_VELOCITY_OFFSET,  sz: 1,   type: 'u8' },
+      defaultNoteLen:  { off: DEFAULT_NOTE_LEN_OFFSET,  sz: 1,   type: 'u8' },
+      defaultTrigFlags:{ off: DEFAULT_TRIG_FLAGS_OFFSET,sz: 2,   type: 'u16be' },
+      numSteps:        { off: NUM_STEPS_OFFSET,         sz: 1,   type: 'u8' },
+      speed:           { off: TRACK_SPEED_OFFSET,       sz: 1,   type: 'u8' },
+      trigProbability: { off: TRIG_PROBABILITY_OFFSET,  sz: 1,   type: 'u8' },
+    };
+
+    const PATTERN_FIELDS = {
+      masterLength:  { off: MASTER_LENGTH_OFFSET,  sz: 2, type: 'u16be' },
+      masterChg:     { off: MASTER_CHG_OFFSET,     sz: 2, type: 'u16be' },
+      kitNumber:     { off: KIT_NUMBER_OFFSET,     sz: 1, type: 'u8' },
+      swingAmount:   { off: SWING_AMOUNT_OFFSET,   sz: 1, type: 'u8' },
+      scaleMode:     { off: SCALE_MODE_OFFSET,     sz: 1, type: 'u8' },
+      masterSpeed:   { off: MASTER_SPEED_OFFSET,   sz: 1, type: 'u8' },
+      bpm:           { off: BPM_MSB_OFFSET,        sz: 2, type: 'u16be' },
+    };
 
     // Kit raw layout
     const KIT_TRACKS_BASE            = 0x002E;  // ar_sound_t tracks[12] @kit+0x002E

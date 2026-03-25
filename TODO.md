@@ -34,14 +34,13 @@ sub-helpers `buildMasterLenField`, `buildMasterChgField`; body ~5 lines.
 `buildParamSection()` → 4 helpers (`buildParamDisplayConfig`, `resolveSliderState`,
 `buildParamOnChange`, `computeParamShowVal`); loop body ~60 lines.
 
-### 6. Struct schema for pattern layout
-- Pattern data accessed via `raw[trackBase + SOME_OFFSET]` everywhere
-- Create a descriptor/schema system: `{ offset, size, type }` per field
-- Would make access self-documenting and enable validation
+### 6. ~~Struct schema for pattern layout~~ ✅
+`TRACK_FIELDS` and `PATTERN_FIELDS` schema objects in `ar-constants.js`.
+Each field: `{ off, sz, type }` where type is `u8`, `u16be`, `u8[]`, or `bitstream`.
 
-### 7. Repeated byte-reading boilerplate
-- `arr.length > offset ? arr[offset] : 0` pattern appears dozens of times
-- Extract `readU8(arr, offset)` and `readU16BE(arr, offset)` helpers
+### 7. ~~Repeated byte-reading boilerplate~~ ✅
+Added `readU8`, `readU16BE`, `writeU8`, `writeU16BE` to `ar-constants.js`.
+Migrated 6 safe-read patterns, 11 u16 reads, and 5 u16 writes in `ar-editor.js`.
 
 ### 8. Fragile machine parameter tables
 - `MACHINE_PARAM_NAMES`: 8 rows × 34 columns, extremely long lines
@@ -82,6 +81,23 @@ sub-helpers `buildMasterLenField`, `buildMasterChgField`; body ~5 lines.
 ### 16. MIDI as global side effects
 - `onstatechange` and `onmidimessage` registered globally
 - No way to disconnect/reset without page reload
+
+## Features / Data
+
+### 17. Request global settings for project BPM
+- Pattern BPM field (`0x332A`) is only used when AR BPM mode = PTN
+- When BPM mode = PRJ, the pattern stores a stale/default 120.0 — not the actual tempo
+- Request the global/project settings SysEx to get the real BPM
+- If project BPM mode: show project BPM as read-only with "(PRJ)" indicator
+- If pattern BPM mode: show pattern BPM as editable (current behaviour)
+
+### 18. Request sound pool for sound lock awareness
+- Currently sound locks show the pool slot number but we don't fetch pool sounds
+- Without pool data we can't tell if a sound lock's machine is compatible with the track
+- Request the full sound pool (128 sounds) so we can:
+  - Show the machine name for each sound lock
+  - Warn when a sound lock's machine doesn't match the track
+  - Use correct pool sound defaults when displaying plock values for locked steps
 
 ## Documentation
 

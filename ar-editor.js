@@ -171,9 +171,7 @@ var setStatus = AR.setStatus;
         const curOn     = (curFlags & AR_TRIG_ENABLE) !== 0;
         const SYN_SMP   = AR_TRIG_SYN_PL_SW | AR_TRIG_SMP_PL_SW;
 
-        const dtfHi = S.pattern.raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET];
-        const dtfLo = S.pattern.raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET + 1];
-        const defTrigFlags = (dtfHi << 8) | dtfLo;
+        const defTrigFlags = readU16BE(S.pattern.raw, trackBase + DEFAULT_TRIG_FLAGS_OFFSET);
 
         if (e.shiftKey) {
           if (curOn) {
@@ -244,10 +242,9 @@ var setStatus = AR.setStatus;
       U.gridEl.innerHTML = '';
 
       const stepOffset = page * 32;
-      const swingAmount = (raw.length > SWING_AMOUNT_OFFSET) ? raw[SWING_AMOUNT_OFFSET] : 0;
-      const gridScaleMode = raw.length > SCALE_MODE_OFFSET ? raw[SCALE_MODE_OFFSET] : 0;
-      const gridMasterLenRaw = raw.length > MASTER_LENGTH_OFFSET + 1
-        ? (raw[MASTER_LENGTH_OFFSET] << 8) | raw[MASTER_LENGTH_OFFSET + 1] : 1;
+      const swingAmount = readU8(raw, SWING_AMOUNT_OFFSET);
+      const gridScaleMode = readU8(raw, SCALE_MODE_OFFSET);
+      const gridMasterLenRaw = readU16BE(raw, MASTER_LENGTH_OFFSET);
       const gridMasterSteps = (gridMasterLenRaw === 0 || gridMasterLenRaw === 1)
         ? 64 : Math.min(gridMasterLenRaw, 64);
 
@@ -466,7 +463,7 @@ var setStatus = AR.setStatus;
       };
 
       // Scale mode check
-      const tsScaleMode = raw.length > SCALE_MODE_OFFSET ? raw[SCALE_MODE_OFFSET] : 0;
+      const tsScaleMode = readU8(raw, SCALE_MODE_OFFSET);
 
       // Scale section: Normal → "Std", Advanced → Len + Spd
       const numSteps = raw[trackBase + NUM_STEPS_OFFSET];
@@ -583,9 +580,7 @@ var setStatus = AR.setStatus;
       });
 
       // Default Trig Flags
-      const defFlagsHi = raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET];
-      const defFlagsLo = raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET + 1];
-      const defFlags   = (defFlagsHi << 8) | defFlagsLo;
+      const defFlags = readU16BE(raw, trackBase + DEFAULT_TRIG_FLAGS_OFFSET);
 
       const flagGrp = document.createElement('span');
       flagGrp.className = 'ts-group';
@@ -608,8 +603,7 @@ var setStatus = AR.setStatus;
         el.addEventListener('click', (e) => {
           e.stopPropagation();
           const nf = defFlags ^ f.bit;
-          raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET]     = (nf >> 8) & 0xFF;
-          raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET + 1] = nf & 0xFF;
+          writeU16BE(raw, trackBase + DEFAULT_TRIG_FLAGS_OFFSET, nf);
           refreshAfterEdit();
         });
         flagGrp.appendChild(el);
@@ -624,9 +618,8 @@ var setStatus = AR.setStatus;
       const trigBits  = S.pattern.raw.subarray(trackBase + TRIG_BITS_OFFSET, trackBase + 112);
       const flags     = getTrigFlags(trigBits, s);
       const isOn      = (flags & AR_TRIG_ENABLE) !== 0;
-      const spScaleMode = S.pattern.raw.length > SCALE_MODE_OFFSET ? S.pattern.raw[SCALE_MODE_OFFSET] : 0;
-      const spMasterLenRaw = S.pattern.raw.length > MASTER_LENGTH_OFFSET + 1
-        ? (S.pattern.raw[MASTER_LENGTH_OFFSET] << 8) | S.pattern.raw[MASTER_LENGTH_OFFSET + 1] : 1;
+      const spScaleMode = readU8(S.pattern.raw, SCALE_MODE_OFFSET);
+      const spMasterLenRaw = readU16BE(S.pattern.raw, MASTER_LENGTH_OFFSET);
       const spMasterSteps = (spMasterLenRaw === 0 || spMasterLenRaw === 1) ? 64 : Math.min(spMasterLenRaw, 64);
       const numSteps  = spScaleMode ? S.pattern.raw[trackBase + NUM_STEPS_OFFSET] : spMasterSteps;
       const beyond    = s >= numSteps;
@@ -820,21 +813,19 @@ var setStatus = AR.setStatus;
       );
 
       // BPM: 16-bit BE, rawValue = BPM × 120
-      const bpmRaw = raw.length > BPM_LSB_OFFSET
-        ? (raw[BPM_MSB_OFFSET] << 8) | raw[BPM_LSB_OFFSET] : 0;
+      const bpmRaw = readU16BE(raw, BPM_MSB_OFFSET);
       const bpmStr = bpmRaw ? (bpmRaw / 120).toFixed(1) : '—';
       metaField('BPM', bpmStr, bpmRaw ? (bpmRaw / 120).toFixed(1) : '120.0', (val) => {
         const bpm = parseFloat(val);
         if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
           const rv = Math.round(bpm * 120);
-          raw[BPM_MSB_OFFSET] = (rv >> 8) & 0xFF;
-          raw[BPM_LSB_OFFSET] = rv & 0xFF;
+          writeU16BE(raw, BPM_MSB_OFFSET, rv);
         }
         refreshAfterEdit();
       }, { width: '52px' }, line);
 
       // Swing: raw 0-30, displayed as 50-80%
-      const swingAmt = raw.length > SWING_AMOUNT_OFFSET ? raw[SWING_AMOUNT_OFFSET] : 0;
+      const swingAmt = readU8(raw, SWING_AMOUNT_OFFSET);
       metaField('Swing', (50 + swingAmt) + '%', 50 + swingAmt, (val) => {
         let n = parseInt(val, 10);
         if (isNaN(n)) n = 50;
@@ -853,12 +844,12 @@ var setStatus = AR.setStatus;
       line.className = 'meta-line';
 
       // Scale mode: arrows-only toggle (NRM / ADV)
-      const scaleMode = raw.length > SCALE_MODE_OFFSET ? raw[SCALE_MODE_OFFSET] : 0;
+      const scaleMode = readU8(raw, SCALE_MODE_OFFSET);
       const toggleScale = () => {
         const wasAdv = raw[SCALE_MODE_OFFSET];
         raw[SCALE_MODE_OFFSET] = wasAdv ? 0 : 1;
         if (wasAdv) {
-          let ml = (raw[MASTER_LENGTH_OFFSET] << 8) | raw[MASTER_LENGTH_OFFSET + 1];
+          let ml = readU16BE(raw, MASTER_LENGTH_OFFSET);
           if (ml === 0 || ml === 1 || ml > 64) {
             ml = 64;
             raw[MASTER_LENGTH_OFFSET] = 0;
@@ -890,8 +881,7 @@ var setStatus = AR.setStatus;
     // Master length field (N/D with text entry + arrows)
     // Encoding: 0=1024, 1=INF, 2-1023=2-1023
     function buildMasterLenField(raw, scaleMode, container) {
-      let masterLenRaw = raw.length > MASTER_LENGTH_OFFSET + 1
-        ? (raw[MASTER_LENGTH_OFFSET] << 8) | raw[MASTER_LENGTH_OFFSET + 1] : 1;
+      let masterLenRaw = readU16BE(raw, MASTER_LENGTH_OFFSET);
       if (!scaleMode && (masterLenRaw === 0 || masterLenRaw === 1 || masterLenRaw > 64)) {
         masterLenRaw = 64;
         raw[MASTER_LENGTH_OFFSET] = 0;
@@ -914,11 +904,9 @@ var setStatus = AR.setStatus;
         wrap.appendChild(suf);
       }
 
-      const readLen = () => raw.length > MASTER_LENGTH_OFFSET + 1
-        ? (raw[MASTER_LENGTH_OFFSET] << 8) | raw[MASTER_LENGTH_OFFSET + 1] : 1;
+      const readLen = () => readU16BE(raw, MASTER_LENGTH_OFFSET);
       const writeLen = (n) => {
-        raw[MASTER_LENGTH_OFFSET] = (n >> 8) & 0xFF;
-        raw[MASTER_LENGTH_OFFSET + 1] = n & 0xFF;
+        writeU16BE(raw, MASTER_LENGTH_OFFSET, n);
         if (!scaleMode) {
           const perTrack = (n === 0 || n === 1) ? 64 : Math.min(n, 64);
           for (let t = 0; t < 13; t++)
@@ -989,8 +977,7 @@ var setStatus = AR.setStatus;
     // Master change length field (advanced mode only)
     // Encoding: 0=1024, 1=OFF, 2-1023=2-1023
     function buildMasterChgField(raw, container) {
-      const chgRaw = raw.length > MASTER_CHG_OFFSET + 1
-        ? (raw[MASTER_CHG_OFFSET] << 8) | raw[MASTER_CHG_OFFSET + 1] : 1;
+      const chgRaw = readU16BE(raw, MASTER_CHG_OFFSET);
       const disp = chgRaw === 1 ? 'OFF'
         : (chgRaw === 0 ? '1024' : String(chgRaw));
 
@@ -1016,8 +1003,7 @@ var setStatus = AR.setStatus;
           let n;
           if (upper === 'OFF' || upper === '') n = 1;
           else { n = parseInt(upper, 10); if (isNaN(n) || n < 2) n = 1; if (n >= 1024) n = 0; }
-          raw[MASTER_CHG_OFFSET] = (n >> 8) & 0xFF;
-          raw[MASTER_CHG_OFFSET + 1] = n & 0xFF;
+          writeU16BE(raw, MASTER_CHG_OFFSET, n);
           refreshAfterEdit();
         };
         const cancel = () => { if (done) return; done = true; refreshAfterEdit(); };
@@ -1029,9 +1015,8 @@ var setStatus = AR.setStatus;
         inp.addEventListener('blur', () => { setTimeout(() => { if (!done) commit(); }, 0); });
       });
 
-      const readChg = () => raw.length > MASTER_CHG_OFFSET + 1
-        ? (raw[MASTER_CHG_OFFSET] << 8) | raw[MASTER_CHG_OFFSET + 1] : 1;
-      const writeChg = (n) => { raw[MASTER_CHG_OFFSET] = (n >> 8) & 0xFF; raw[MASTER_CHG_OFFSET + 1] = n & 0xFF; };
+      const readChg = () => readU16BE(raw, MASTER_CHG_OFFSET);
+      const writeChg = (n) => { writeU16BE(raw, MASTER_CHG_OFFSET, n); };
 
       wrap.appendChild(metaArrowBtn('▼', () => {
         const n = readChg();
@@ -1085,9 +1070,7 @@ var setStatus = AR.setStatus;
       const enBit = PL_SW_TO_EN[bit];
       if (enBit) {
         // Determine effective state: PL_EN ? PL_SW : track default
-        const dtfHi = S.pattern.raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET];
-        const dtfLo = S.pattern.raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET + 1];
-        const defFlags = (dtfHi << 8) | dtfLo;
+        const defFlags = readU16BE(S.pattern.raw, trackBase + DEFAULT_TRIG_FLAGS_OFFSET);
         const effectiveOn = (flags & enBit)
           ? (flags & bit) !== 0
           : (defFlags & bit) !== 0;
@@ -1280,9 +1263,7 @@ var setStatus = AR.setStatus;
 
       // SYN / SMP / ENV / LFO retrigger switches
       // For SYN/SMP: effective state = PL_EN ? PL_SW : track default
-      const dtfHi = S.pattern.raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET];
-      const dtfLo = S.pattern.raw[trackBase + DEFAULT_TRIG_FLAGS_OFFSET + 1];
-      const defFlags = (dtfHi << 8) | dtfLo;
+      const defFlags = readU16BE(S.pattern.raw, trackBase + DEFAULT_TRIG_FLAGS_OFFSET);
       const swDefs = [
         { lbl: 'SYN', bit: AR_TRIG_SYN_PL_SW, en: AR_TRIG_SYN_PL_EN },
         { lbl: 'SMP', bit: AR_TRIG_SMP_PL_SW, en: AR_TRIG_SMP_PL_EN },

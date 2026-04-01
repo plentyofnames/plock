@@ -23,6 +23,26 @@
     const SYSEX_END                  = 0xF7;
 
     // ─── Plock sentinel values ───────────────────────────────────────────────
+    //
+    // Plock (parameter lock) sequences live in the pattern as a flat array of
+    // NUM_PLOCK_SEQS slots.  Each slot is PLOCK_SEQ_SZ bytes:
+    //
+    //   byte 0:  param type   (0x00–0x7F = coarse param id, 0x80 = fine companion, 0xFF = unused)
+    //   byte 1:  track number (0–12, or 0x80 for fine companion, 0xFF = unused)
+    //   bytes 2–65:  one value per step (0x00–0x7F = value, 0xFF = no lock on this step)
+    //
+    // Fine-companion encoding:
+    //   Some parameters (frequency, decimal) need more than 7-bit resolution.
+    //   The AR stores these as a coarse+fine pair of adjacent slots:
+    //     slot N:    type=paramId, track=trackNr  → coarse values (0–127)
+    //     slot N+1:  type=0x80,    track=0x80     → fine values   (0–127)
+    //   The fine slot has NO independent identity — it inherits its param type
+    //   and track from the immediately preceding coarse slot.  This adjacency
+    //   invariant must be preserved when reading and writing.
+    //
+    //   Combined value for freq params:  coarse * 128 + fine  (range 0–16256)
+    //   Combined value for decimal params: (coarse - 64) + fine / 128
+    //
     const PLOCK_TYPE_UNUSED          = 0xFF;   // empty plock slot (type or track)
     const PLOCK_FINE_FLAG            = 0x80;   // marks fine-companion type/track byte
     const PLOCK_NO_VALUE             = 0xFF;   // step has no plock value
@@ -243,34 +263,154 @@
     const MACHINE_TYPE_OFFSET = 0x7C;
 
     // Machine names (indexed by machine_type 0-33, from libanalogrytm/sound.c)
-    const MACHINE_NAMES = [
-      'BD HARD','BD CLASSIC','SD HARD','SD CLASSIC','RS HARD','RS CLASSIC',
-      'CP CLASSIC','BT CLASSIC','XT CLASSIC','CH CLASSIC','OH CLASSIC',
-      'CY CLASSIC','CB CLASSIC','BD FM','SD FM','UT NOISE','UT IMPULSE',
-      'CH METALLIC','OH METALLIC','CY METALLIC','CB METALLIC','BD PLASTIC',
-      'BD SILKY','SD NATURAL','HH BASIC','CY RIDE','BD SHARP','DISABLE',
-      'SY DUAL VCO','SY CHIP','BD ACOUSTIC','SD ACOUSTIC','SY RAW','HH LAB',
-    ];
+    // ─── Per-machine configuration ──────────────────────────────────────────
+    // Each entry: { name, params[0-7], bipolar?, decimal?, inf127?, freq?, enums? }
+    // params:  synth param short names (P1-P8); '-' = unused
+    // bipolar: Set of param indices where 64 = center/zero
+    // decimal: { paramIdx: halfRange } for coarse+fine display (±halfRange.00)
+    // inf127:  Set of param indices where value 127 = ∞
+    // freq:    Set of param indices using frequency encoding (coarse*128 + fine Hz)
+    // enums:   { paramIdx: string[] } for enum-valued params
+    //
+    // Ported from libanalogrytm/sound.c (ar_sound_machine_param_short_names et al.)
 
-    // Machine-specific synth param short names [paramIdx 0-7][machineId 0-33]
-    // Ported from ar_sound_machine_param_short_names in libanalogrytm/sound.c
-    const MACHINE_PARAM_NAMES = [
-      // P1 (synth_param_1):
-      ['LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','LEV','-','LEV','LEV','LEV','LEV','LEV','LEV'],
-      // P2 (synth_param_2):
-      ['TUN','TUN','TUN','TUN','TUN','T1','TON','TUN','TUN','TUN','TUN','TUN','TUN','TUN','TUN','LPF','ATK','TUN','TUN','TUN','TUN','TUN','TUN','TUN','TUN','TUN','TUN','-','TUN','TUN','TUN','TUN','TUN','OSC1'],
-      // P3 (synth_param_3):
-      ['DEC','DEC','DEC','DEC','DEC','DEC','NOD','DEC','DEC','DEC','DEC','DEC','DEC','DEC','DEC','DEC','DEC','DEC','DEC','DEC','DEC','DEC','DEC','BDY','DEC','DEC','DEC','-','DEC1','DCY','DEC','BDY','DCY','DEC'],
-      // P4 (synth_param_4):
-      ['HLD','HLD','SWD','DET','SWD','BAL','NUM','-','SWD','COL','COL','COL','DET','FMA','FMT','HPF','-','-','-','TON','DET','TYP','HLD','DEC','TON','TYP','HLD','-','DET','OF2','HLD','NOD','DET','OSC2'],
-      // P5 (synth_param_5):
-      ['SWT','SWT','TIC','SNP','TIC','T2','RAT','NOL','SWT','-','-','TON','PW1','SWT','FMD','LPQ','-','-','-','TRD','PW1','MOD','SWT','BAL','TRD','HIT','SWT','-','DEC2','OF3','SWT','NOL','NOL','OSC3'],
-      // P6 (synth_param_6):
-      ['SNP','SWP','NOD','NOD','NOL','SYM','NOL','SNP','NOD','-','-','-','PW2','FMS','NOD','ATK','-','-','-','-','PW2','SWT','SWD','LPF','RST','C1','SWD','-','BAL','OF4','SWD','HLD','WAV1','OSC4'],
-      // P7 (synth_param_7):
-      ['WAV','WAV','NOL','NOL','SYN','NOL','RND','SWD','NOL','-','-','-','-','FMD','NOL','SWT','-','-','-','-','-','SWD','DUS','LPF','-','C2','WAV','-','BND','WAV','WAV','SWD','WAV2','OSC5'],
-      // P8 (synth_param_8):
-      ['TIC','TRA','SWT','BAL','SWT','TIC','CPD','-','TON','-','-','-','-','FMT','FMA','SWD','POL','-','-','-','-','TIC','CLK','RES','-','C3','TIC','-','CFG','SPD','IMP','IMP','BAL','OSC6'],
+    const MACHINES = [
+      // 0
+      { name: 'BD HARD', params: ['LEV','TUN','DEC','HLD','SWT','SNP','WAV','TIC'],
+        decimal: { 1: 32 }, enums: { 6: ['sin','asin','tri'] } },
+      // 1
+      { name: 'BD CLASSIC', params: ['LEV','TUN','DEC','HLD','SWT','SWP','WAV','TRA'],
+        decimal: { 1: 32 },
+        enums: { 6: ['sin','asin','tri'],
+          7: ['OFF','Tic',
+              'A1','B1','C1','D1','E1', 'A2','B2','C2','D2','E2',
+              'A3','B3','C3','D3','E3', 'A4','B4','C4','D4','E4',
+              'A5','B5','C5','D5','E5'] } },
+      // 2
+      { name: 'SD HARD', params: ['LEV','TUN','DEC','SWD','TIC','NOD','NOL','SWT'],
+        decimal: { 1: 32 } },
+      // 3
+      { name: 'SD CLASSIC', params: ['LEV','TUN','DEC','DET','SNP','NOD','NOL','BAL'],
+        decimal: { 1: 32 }, bipolar: new Set([7]) },
+      // 4
+      { name: 'RS HARD', params: ['LEV','TUN','DEC','SWD','TIC','NOL','SYN','SWT'],
+        decimal: { 1: 32 } },
+      // 5
+      { name: 'RS CLASSIC', params: ['LEV','T1','DEC','BAL','T2','SYM','NOL','TIC'],
+        bipolar: new Set([3,4,5]), decimal: { 1: 32, 4: 32 } },
+      // 6
+      { name: 'CP CLASSIC', params: ['LEV','TON','NOD','NUM','RAT','NOL','RND','CPD'] },
+      // 7
+      { name: 'BT CLASSIC', params: ['LEV','TUN','DEC','-','NOL','SNP','SWD','-'],
+        enums: { 5: ['1','2','3'] } },
+      // 8
+      { name: 'XT CLASSIC', params: ['LEV','TUN','DEC','SWD','SWT','NOD','NOL','TON'],
+        bipolar: new Set([7]) },
+      // 9
+      { name: 'CH CLASSIC', params: ['LEV','TUN','DEC','COL','-','-','-','-'],
+        bipolar: new Set([3]) },
+      // 10
+      { name: 'OH CLASSIC', params: ['LEV','TUN','DEC','COL','-','-','-','-'],
+        bipolar: new Set([3]) },
+      // 11
+      { name: 'CY CLASSIC', params: ['LEV','TUN','DEC','COL','TON','-','-','-'],
+        bipolar: new Set([3,4]) },
+      // 12
+      { name: 'CB CLASSIC', params: ['LEV','TUN','DEC','DET','PW1','PW2','-','-'],
+        bipolar: new Set([4,5]) },
+      // 13
+      { name: 'BD FM', params: ['LEV','TUN','DEC','FMA','SWT','FMS','FMD','FMT'],
+        bipolar: new Set([7]), decimal: { 1: 32, 7: 32 } },
+      // 14
+      { name: 'SD FM', params: ['LEV','TUN','DEC','FMT','FMD','NOD','NOL','FMA'],
+        bipolar: new Set([3,7]), decimal: { 1: 32, 3: 32 } },
+      // 15
+      { name: 'UT NOISE', params: ['LEV','LPF','DEC','HPF','LPQ','ATK','SWT','SWD'],
+        bipolar: new Set([7]) },
+      // 16
+      { name: 'UT IMPULSE', params: ['LEV','ATK','DEC','-','-','-','-','POL'],
+        enums: { 7: ['POS','NEG'] } },
+      // 17
+      { name: 'CH METALLIC', params: ['LEV','TUN','DEC','-','-','-','-','-'] },
+      // 18
+      { name: 'OH METALLIC', params: ['LEV','TUN','DEC','-','-','-','-','-'] },
+      // 19
+      { name: 'CY METALLIC', params: ['LEV','TUN','DEC','TON','TRD','-','-','-'],
+        bipolar: new Set([3]) },
+      // 20
+      { name: 'CB METALLIC', params: ['LEV','TUN','DEC','DET','PW1','PW2','-','-'],
+        bipolar: new Set([4,5]) },
+      // 21
+      { name: 'BD PLASTIC', params: ['LEV','TUN','DEC','TYP','MOD','SWT','SWD','TIC'],
+        decimal: { 1: 32 }, enums: { 3: ['A','B'] } },
+      // 22
+      { name: 'BD SILKY', params: ['LEV','TUN','DEC','HLD','SWT','SWD','DUS','CLK'],
+        decimal: { 1: 32 } },
+      // 23
+      { name: 'SD NATURAL', params: ['LEV','TUN','BDY','DEC','BAL','LPF','LPF','RES'],
+        decimal: { 1: 32 } },
+      // 24
+      { name: 'HH BASIC', params: ['LEV','TUN','DEC','TON','TRD','RST','-','-'],
+        bipolar: new Set([3]), enums: { 5: ['OFF','ON'] } },
+      // 25
+      { name: 'CY RIDE', params: ['LEV','TUN','DEC','TYP','HIT','C1','C2','C3'],
+        enums: { 3: ['A','B','C','D'] } },
+      // 26
+      { name: 'BD SHARP', params: ['LEV','TUN','DEC','HLD','SWT','SWD','WAV','TIC'],
+        decimal: { 1: 32 },
+        enums: { 6: ['sinA','sinB','asinA','asinB','triA','triB',
+                     'ssawA','ssawB','sawA','sawB','sqrA','sqrB'] } },
+      // 27
+      { name: 'DISABLE', params: ['-','-','-','-','-','-','-','-'] },
+      // 28
+      { name: 'SY DUAL VCO', params: ['LEV','TUN','DEC1','DET','DEC2','BAL','BND','CFG'],
+        bipolar: new Set([5,6]), decimal: { 1: 32, 3: 16 }, inf127: new Set([2,4]),
+        enums: { 7: (() => {
+              // 4 modes × 2 osc1 × 5 osc2 × 2 reset = 80
+              const modes = ['+','R','F','RF'];
+              const osc1  = ['sin','ssaw'];
+              const osc2  = ['sin','sksin','tri','ssaw','saw'];
+              const arr = [];
+              for (const m of modes)
+                for (const o1 of osc1)
+                  for (const o2 of osc2)
+                    for (const r of ['','R'])
+                      arr.push(m + ' ' + o1 + '.' + o2 + (r ? '\u0332' : ''));
+              return arr;
+            })() } },
+      // 29
+      { name: 'SY CHIP', params: ['LEV','TUN','DCY','OF2','OF3','OF4','WAV','SPD'],
+        bipolar: new Set([3,4,5]), decimal: { 1: 24 }, inf127: new Set([2]),
+        enums: {
+          6: ['sin','asin','tri','ssaw','saw','sqr','noise',
+              'anm1','anm2','anm3','anm4','anm5','pwm+','pwm-',
+              'triB','+tri','tri+','triX','sawB','+saw','saw+','sawX',
+              'sqrB','+sqr','sqr+','sqrX','tbl1','tbl2','tbl3',
+              ...Array.from({length: 99}, (_, i) => 'p' + (i + 1) + '%')],
+          7: ['128T','128','64T','128d','64','32T','64d','32','16T','32d','16','8T',
+              '16d','8','4T','8d','4','2T','4d','2','1T','2d','1','1d',
+              '1.0Hz','1.56Hz','1.88Hz','2Hz','3.13Hz','3.75Hz','4Hz','5Hz',
+              '6.25Hz','7.5Hz','10Hz','12.5Hz','15Hz','20Hz','25Hz','30Hz',
+              '40Hz','50Hz','60Hz','75Hz','100Hz','120Hz','150Hz','180Hz',
+              '200Hz','240Hz','250Hz','300Hz','350Hz','360Hz','400Hz','420Hz',
+              '480Hz','240S','200S','150S','120S','100S',
+              '60S','50S','30S','25S'] } },
+      // 30
+      { name: 'BD ACOUSTIC', params: ['LEV','TUN','DEC','HLD','SWT','SWD','WAV','IMP'],
+        decimal: { 1: 24 },
+        enums: { 6: ['sinA','sinB','asinA','asinB','triA','triB',
+                     'ssawA','ssawB','sawA','sawB','sqrA','sqrB'] } },
+      // 31
+      { name: 'SD ACOUSTIC', params: ['LEV','TUN','BDY','NOD','NOL','HLD','SWD','IMP'],
+        decimal: { 1: 24 } },
+      // 32
+      { name: 'SY RAW', params: ['LEV','TUN','DCY','DET','NOL','WAV1','WAV2','BAL'],
+        bipolar: new Set([3,7]), decimal: { 1: 24, 3: 24 }, inf127: new Set([2]),
+        enums: { 5: ['sin','asin','tri','ssaw','asaw','saw','ring'],
+                 6: ['sineA','ssawA','sineB','ssawB'] } },
+      // 33
+      { name: 'HH LAB', params: ['LEV','OSC1','DEC','OSC2','OSC3','OSC4','OSC5','OSC6'],
+        freq: new Set([1,3,4,5,6,7]) },
     ];
 
     // Sysex IDs for stored sound pool
@@ -377,122 +517,11 @@
     function lfoDestName(v, machineType) {
       // For SYN destinations (0-7), use machine-specific param names
       if (v <= 7 && machineType !== null && machineType !== undefined) {
-        const ml = MACHINE_PARAM_NAMES[v]?.[machineType];
+        const ml = MACHINES[machineType]?.params[v];
         if (ml && ml !== '-') return ml;
       }
       return LFO_DEST_NAMES[v] ?? String(v);
     }
-
-    // Machine-specific bipolar params (64 = center/zero)
-    // machineType → Set of plock indices (0-7) that are bipolar
-    const MACHINE_BIPOLAR = {
-      3:  new Set([7]),          // SD Classic: P8=BAL
-      5:  new Set([3,4,5]),      // RS Classic: P4=BAL, P5=T2, P6=SYM
-      8:  new Set([7]),          // XT Classic: P8=TON
-      9:  new Set([3]),          // CH Classic: P4=COL
-      10: new Set([3]),          // OH Classic: P4=COL
-      11: new Set([3,4]),        // CY Classic: P4=COL, P5=TON
-      12: new Set([4,5]),        // CB Classic: P5=PW1, P6=PW2
-      13: new Set([7]),          // BD FM: P8=FMT
-      14: new Set([3,7]),        // SD FM: P4=FMT, P8=FMT
-      15: new Set([7]),          // UT Noise: P8=SWD
-      19: new Set([3]),          // CY Metallic: P4=TON
-      20: new Set([4,5]),        // CB Metallic: P5=PW1, P6=PW2
-      24: new Set([3]),          // HH Basic: P4=TON
-      28: new Set([5,6]),        // SY Dual VCO: P6=BAL, P7=BND
-      29: new Set([3,4,5]),      // SY Chip: P4=OF2, P5=OF3, P6=OF4
-      32: new Set([3,7]),        // SY Raw: P4=DET, P8=BAL
-    };
-
-    // Machine-specific decimal (coarse+fine) params
-    // machineType → { plockIdx: halfRange }  (display: -halfRange.00 .. +halfRange.00)
-    // TUN (plock 1) uses halfRange from here; other params keyed by their plock index
-    const MACHINE_DECIMAL = {
-      0:  { 1: 32 },               // BD Hard: TUN
-      1:  { 1: 32 },               // BD Classic: TUN
-      2:  { 1: 32 },               // SD Hard: TUN
-      3:  { 1: 32 },               // SD Classic: TUN
-      4:  { 1: 32 },               // RS Hard: TUN
-      5:  { 1: 32, 4: 32 },        // RS Classic: T1=P2(idx1), T2=P5(idx4) both ±32
-      13: { 1: 32, 7: 32 },        // BD FM: TUN, FMT=P8(idx7)
-      14: { 1: 32, 3: 32 },        // SD FM: TUN, FMT=P4(idx3)
-      21: { 1: 32 },               // BD Plastic: TUN
-      22: { 1: 32 },               // BD Silky: TUN
-      23: { 1: 32 },               // SD Natural: TUN
-      26: { 1: 32 },               // BD Sharp: TUN
-      28: { 1: 32, 3: 16 },        // SY Dual VCO: TUN ±32, DET=P4(idx3) ±16
-      29: { 1: 24 },               // SY Chip: TUN ±24
-      30: { 1: 24 },               // BD Acoustic: TUN ±24
-      31: { 1: 24 },               // SD Acoustic: TUN ±24
-      32: { 1: 24, 3: 24 },        // SY Raw: TUN ±24, DET=P4(idx3) ±24
-    };
-
-    // Machine-specific inf127 params (value 127 = ∞)
-    // machineType → Set of plock indices (0-7)
-    const MACHINE_INF127 = {
-      28: new Set([2, 4]),          // SY Dual VCO: DEC1=P3(idx2), DEC2=P5(idx4)
-      29: new Set([2]),             // SY Chip: DCY=P3(idx2)
-      32: new Set([2]),             // SY Raw: DCY=P3(idx2)
-    };
-
-    // Machine-specific frequency params (coarse*128 + fine = Hz, range 0-16256)
-    // machineType → Set of plock indices
-    const MACHINE_FREQ = {
-      33: new Set([1, 3, 4, 5, 6, 7]),  // HH Lab: OSC1-OSC6 (P2,P4,P5,P6,P7,P8)
-    };
-
-    // Machine-specific enum params
-    // machineType → { plockIdx: string[] }
-    const MACHINE_ENUMS = {
-      0:  { 6: ['sin','asin','tri'] },  // BD Hard: P7=WAV
-      1:  { 6: ['sin','asin','tri'],    // BD Classic: P7=WAV
-            7: ['OFF','Tic',
-                'A1','B1','C1','D1','E1',
-                'A2','B2','C2','D2','E2',
-                'A3','B3','C3','D3','E3',
-                'A4','B4','C4','D4','E4',
-                'A5','B5','C5','D5','E5'] },  // BD Classic: P8=TRA
-      7:  { 5: ['1','2','3'] },          // BT Classic: P6=SNP
-      16: { 7: ['POS','NEG'] },         // UT Impulse: P8=POL
-      21: { 3: ['A','B'] },             // BD Plastic: P4=TYP
-      24: { 5: ['OFF','ON'] },          // HH Basic: P6=RST
-      25: { 3: ['A','B','C','D'] },     // CY Ride: P4=TYP
-      26: { 6: ['sinA','sinB','asinA','asinB','triA','triB','ssawA','ssawB','sawA','sawB','sqrA','sqrB'] },  // BD Sharp: P7=WAV
-      29: {
-        6: ['sin','asin','tri','ssaw','saw','sqr','noise',
-            'anm1','anm2','anm3','anm4','anm5','pwm+','pwm-',
-            'triB','+tri','tri+','triX','sawB','+saw','saw+','sawX',
-            'sqrB','+sqr','sqr+','sqrX','tbl1','tbl2','tbl3',
-            ...Array.from({length: 99}, (_, i) => 'p' + (i + 1) + '%')],  // SY Chip: P7=WAV
-        7: ['128T','128','64T','128d','64','32T','64d','32','16T','32d','16','8T',
-            '16d','8','4T','8d','4','2T','4d','2','1T','2d','1','1d',
-            '1.0Hz','1.56Hz','1.88Hz','2Hz','3.13Hz','3.75Hz','4Hz','5Hz',
-            '6.25Hz','7.5Hz','10Hz','12.5Hz','15Hz','20Hz','25Hz','30Hz',
-            '40Hz','50Hz','60Hz','75Hz','100Hz','120Hz','150Hz','180Hz',
-            '200Hz','240Hz','250Hz','300Hz','350Hz','360Hz','400Hz','420Hz',
-            '480Hz','240S','200S','150S','120S','100S',
-            '60S','50S','30S','25S'],  // SY Chip: P8=SPD (S = single shot)
-      },
-      28: { 7: (() => {  // SY Dual VCO: P8=CFG (80 values)
-            // 4 modes × 2 osc1 × 5 osc2 × 2 reset = 80
-            // Order: reset toggles each step, then osc2, then osc1, then mode
-            const modes = ['+','R','F','RF'];
-            const osc1  = ['sin','ssaw'];
-            const osc2  = ['sin','sksin','tri','ssaw','saw'];
-            const arr = [];
-            for (const m of modes)
-              for (const o1 of osc1)
-                for (const o2 of osc2)
-                  for (const r of ['','R'])
-                    arr.push(m + ' ' + o1 + '.' + o2 + (r ? '\u0332' : ''));
-            return arr;
-          })() },
-      30: { 6: ['sinA','sinB','asinA','asinB','triA','triB','ssawA','ssawB','sawA','sawB','sqrA','sqrB'] },  // BD Acoustic: P7=WAV
-      32: {
-        5: ['sin','asin','tri','ssaw','asaw','saw','ring'],      // SY Raw: P6=WAV1
-        6: ['sineA','ssawA','sineB','ssawB'],                    // SY Raw: P7=WAV2
-      },
-    };
 
     // ─── Plock parameter info ─────────────────────────────────────────────────
     // Maps plock_type → { section, label, soundOff, [bipolar], [enum], [pan], [inf127], [lfoDest] }

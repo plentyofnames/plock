@@ -42,16 +42,19 @@ Each field: `{ off, sz, type }` where type is `u8`, `u16be`, `u8[]`, or `bitstre
 Added `readU8`, `readU16BE`, `writeU8`, `writeU16BE` to `ar-constants.js`.
 Migrated 6 safe-read patterns, 11 u16 reads, and 5 u16 writes in `ar-editor.js`.
 
-### 8. Fragile machine parameter tables
-- `MACHINE_PARAM_NAMES`: 8 rows × 34 columns, extremely long lines
-- `MACHINE_BIPOLAR/DECIMAL/ENUMS/FREQ/INF127`: use numeric machine/param IDs
-- No validation that all 34 machines are covered
-- Consider restructuring as per-machine objects instead of per-parameter arrays
+### 8. ~~Fragile machine parameter tables~~ ✅
+Consolidated 7 separate tables (`MACHINE_NAMES`, `MACHINE_PARAM_NAMES`,
+`MACHINE_BIPOLAR`, `MACHINE_DECIMAL`, `MACHINE_INF127`, `MACHINE_FREQ`,
+`MACHINE_ENUMS`) into one `MACHINES` array of per-machine objects. Each machine's
+full config (name, params, bipolar, decimal, inf127, freq, enums) lives in one
+place. All 34 machines are explicitly listed with index comments. Consumer lookups
+simplified: `MACHINES[machineType].name`, `.params[pt]`, `.bipolar?.has(pt)`, etc.
 
-### 9. Plock fine-companion encoding undocumented
-- `0x80` type/track magic for fine companion plocks has zero comments
-- Implicit "fine always follows coarse" assumption has no guard
-- Add JSDoc + defensive error handling
+### 9. ~~Plock fine-companion encoding undocumented~~ ✅
+Fine-companion system fully documented in `ar-constants.js` header (slot layout,
+combining formulas, adjacency invariant). `writePlock` now defensively deallocates
+any fine companion when its coarse slot is freed. `parsePlocks` warns on orphaned
+fine slots. All plock read/write functions have explanatory comments.
 
 ### 10. Full grid re-render on every edit
 - `refreshAfterEdit()` re-renders all 832 cells + metadata + panels for any change
@@ -66,9 +69,12 @@ Migrated 6 safe-read patterns, 11 u16 reads, and 5 u16 writes in `ar-editor.js`.
 - `sndOff` vs `kitOff` (different schemas for same concept in PLOCK_INFO vs FX_PLOCK_INFO)
 - Mix of `Raw` suffix with unprefixed names
 
-### 13. Bipolar/decimal/enum conversion scattered
-- Conversion between raw bytes and display values is inlined in rendering code
-- Extract reusable `bipolarToDisplay()`, `displayToBipolar()`, `decimalToDisplay()`, etc.
+### 13. ~~Bipolar/decimal/enum conversion scattered~~ ✅
+Extracted shared display helpers (`displayBipolar`, `displayPan`, `displayInf127`,
+`displayLfoPhase`, `displayPct200`, `displayPlain`) at top of `ar-editor.js`.
+Both `buildFxParamSection` and `buildParamDisplayConfig` now use these instead of
+duplicating inline lambdas. Decimal and freq display remain inline where they need
+closure-captured config (slider half-range, etc.).
 
 ### 14. `decodeSysex7to8` / `encodeSysex8to7` share no code
 - Inverse operations implemented independently
@@ -91,7 +97,14 @@ Migrated 6 safe-read patterns, 11 u16 reads, and 5 u16 writes in `ar-editor.js`.
 - If project BPM mode: show project BPM as read-only with "(PRJ)" indicator
 - If pattern BPM mode: show pattern BPM as editable (current behaviour)
 
-### 18. Request sound pool for sound lock awareness
+### 18. Audio preview engine (browser-based playback)
+- Synthesize simple drum voices (Web Audio), play pattern in real-time
+- Full sequencer: trigs, conditions, micro-timing, swing, retrig, velocity, accent
+- Single tick grid: 1920 ticks/whole note (480 PPQN), shared by utime + retrig
+- UI indicators for which params are "live" vs display-only
+- See `NOTES-audio-preview.md` for full design notes and implementation plan
+
+### 19. Request sound pool for sound lock awareness
 - Currently sound locks show the pool slot number but we don't fetch pool sounds
 - Without pool data we can't tell if a sound lock's machine is compatible with the track
 - Request the full sound pool (128 sounds) so we can:

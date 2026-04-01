@@ -161,8 +161,13 @@
     }
 
     // ─── Plock parsing ────────────────────────────────────────────────────────
-    // Scans plock_seqs and populates AR.state.pattern.plocks via AR.loadPlocks.
-    // Returns a plockMap[track][step] presence array for use in renderGrid.
+    // Scans plock_seqs sequentially and populates AR.state.pattern.plocks via
+    // AR.loadPlocks.  Returns a plockMap[track][step] presence array for renderGrid.
+    //
+    // Fine-companion pairing: the scan tracks the last coarse slot seen.  When a
+    // fine slot (type=0x80, track=0x80) appears, it is paired with that preceding
+    // coarse slot.  An unused/invalid slot resets tracking, so a fine slot is only
+    // valid when it immediately follows its coarse slot with no gaps.
 
     function parsePlocks(raw) {
       const values = Array.from({length: AR_NUM_TRACKS}, () => new Map());
@@ -179,6 +184,11 @@
           const trkNr  = raw[base + 1];
 
           // Fine companion: type=PLOCK_FINE_FLAG, track=PLOCK_FINE_FLAG — pair with preceding coarse
+          if (plType === PLOCK_FINE_FLAG && trkNr === PLOCK_FINE_FLAG && lastCoarseTrk < 0) {
+            // Orphaned fine slot — no preceding coarse to pair with; skip it
+            setStatus('warn: orphaned fine plock at slot ' + si + ' (no preceding coarse)');
+            continue;
+          }
           if (plType === PLOCK_FINE_FLAG && trkNr === PLOCK_FINE_FLAG && lastCoarseTrk >= 0) {
             let arr = fine[lastCoarseTrk].get(lastCoarseType);
             if (!arr) { arr = new Uint8Array(AR_NUM_STEPS).fill(PLOCK_NO_VALUE); fine[lastCoarseTrk].set(lastCoarseType, arr); }

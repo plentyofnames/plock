@@ -12,6 +12,33 @@ var setStatus = AR.setStatus;
     const GRID_GROUP_GAP = 8;
     const GRID_BEAT_SZ  = 4;
 
+    // ─── Display conversion helpers ─────────────────────────────────────────
+    // Shared formatters for parameter values → display strings.  Used by both
+    // track param sections and FX param sections to avoid duplicate inline lambdas.
+
+    function displayBipolar(v) {
+      if (v >= 128) return 'TRK';
+      const sv = v - 64;
+      return (sv >= 0 ? '+' : '') + sv;
+    }
+    function displayPan(v) {
+      if (v >= 128) return 'TRK';
+      if (v === 64) return 'C';
+      return v < 64 ? 'L' + (64 - v) : 'R' + (v - 64);
+    }
+    function displayInf127(v) {
+      return v >= 128 ? 'TRK' : v === 127 ? '\u221E' : String(v);
+    }
+    function displayLfoPhase(v) {
+      return v >= 128 ? 'TRK' : Math.round(v * 360 / 128) + '\u00B0';
+    }
+    function displayPct200(v) {
+      return v >= 128 ? 'TRK' : Math.round(v * 200 / 128);
+    }
+    function displayPlain(v) {
+      return v >= 128 ? 'TRK' : v;
+    }
+
     function gridStepCenterX(pageIdx) {
       const g = Math.floor(pageIdx / GRID_GROUP_SZ);
       const s = pageIdx % GRID_GROUP_SZ;
@@ -138,7 +165,7 @@ var setStatus = AR.setStatus;
           const ps = S.pattern.soundPool.get(sndLock);
           if (ps.length > MACHINE_TYPE_OFFSET) {
             const mt = ps[MACHINE_TYPE_OFFSET];
-            if (mt < MACHINE_NAMES.length) sndTip += ' ' + MACHINE_NAMES[mt];
+            if (mt < MACHINES.length) sndTip += ' ' + MACHINES[mt].name;
           }
         }
         modParts.push(sndTip);
@@ -293,7 +320,7 @@ var setStatus = AR.setStatus;
         if (machType !== null) {
           const machSpan = document.createElement('span');
           machSpan.className = 'track-meta track-machine';
-          machSpan.textContent = MACHINE_NAMES[machType];
+          machSpan.textContent = MACHINES[machType].name;
           label.appendChild(machSpan);
         }
         label.style.cursor = 'pointer';
@@ -411,7 +438,7 @@ var setStatus = AR.setStatus;
       title.className = 'ts-title';
       const machType = getTrackMachineType(t);
       title.textContent = TRACK_NAMES[t] +
-        (machType !== null ? ' · ' + MACHINE_NAMES[machType] : '');
+        (machType !== null ? ' · ' + MACHINES[machType].name : '');
       panel.appendChild(title);
 
       // Inline editable value helper
@@ -638,11 +665,11 @@ var setStatus = AR.setStatus;
         poolSound = S.pattern.soundPool.get(sndLock);
         if (poolSound.length > MACHINE_TYPE_OFFSET) {
           const mt = poolSound[MACHINE_TYPE_OFFSET];
-          if (mt < MACHINE_NAMES.length) stepMachineType = mt;
+          if (mt < MACHINES.length) stepMachineType = mt;
         }
       }
 
-      const machName = (stepMachineType !== null) ? MACHINE_NAMES[stepMachineType] : '';
+      const machName = (stepMachineType !== null) ? MACHINES[stepMachineType].name : '';
 
       const panel = document.createElement('div');
       panel.className = 'step-panel';
@@ -1163,7 +1190,7 @@ var setStatus = AR.setStatus;
         const ps = S.pattern.soundPool.get(sndLock);
         if (ps.length > MACHINE_TYPE_OFFSET) {
           const mt = ps[MACHINE_TYPE_OFFSET];
-          if (mt < MACHINE_NAMES.length) sndDisplay = (sndLock + 1) + ' ' + MACHINE_NAMES[mt];
+          if (mt < MACHINES.length) sndDisplay = (sndLock + 1) + ' ' + MACHINES[mt].name;
         }
       }
 
@@ -1186,7 +1213,7 @@ var setStatus = AR.setStatus;
           const ps = S.pattern.soundPool.get(v);
           if (ps.length > MACHINE_TYPE_OFFSET) {
             const mt = ps[MACHINE_TYPE_OFFSET];
-            if (mt < MACHINE_NAMES.length) d += ' ' + MACHINE_NAMES[mt];
+            if (mt < MACHINES.length) d += ' ' + MACHINES[mt].name;
           }
         }
         return d;
@@ -1345,6 +1372,8 @@ var setStatus = AR.setStatus;
 
     // Write a plock value into S.pattern.raw. Finds or allocates the plock sequence
     // slot for the given track + param type. Deallocates if all steps become PLOCK_NO_VALUE.
+    // When deallocating, any fine companion in the adjacent slot is also cleaned up
+    // to prevent orphaned fine slots (which would corrupt the coarse+fine pairing).
     function writePlock(t, pt, s, val) {
       if (!S.pattern.raw) return;
       const end = PLOCK_SEQS_BASE + NUM_PLOCK_SEQS * PLOCK_SEQ_SZ;
@@ -1352,10 +1381,11 @@ var setStatus = AR.setStatus;
 
       // Find existing slot for this track + param type
       let slotBase = -1;
+      let slotIdx  = -1;
       let freeBase = -1;
       for (let si = 0; si < NUM_PLOCK_SEQS; si++) {
         const base = PLOCK_SEQS_BASE + si * PLOCK_SEQ_SZ;
-        if (S.pattern.raw[base] === pt && S.pattern.raw[base + 1] === t) { slotBase = base; break; }
+        if (S.pattern.raw[base] === pt && S.pattern.raw[base + 1] === t) { slotBase = base; slotIdx = si; break; }
         if (freeBase < 0 && S.pattern.raw[base] === PLOCK_TYPE_UNUSED) freeBase = base;
       }
 
@@ -1367,7 +1397,19 @@ var setStatus = AR.setStatus;
         for (let i = 0; i < AR_NUM_STEPS; i++) {
           if (S.pattern.raw[slotBase + 2 + i] !== PLOCK_NO_VALUE) { allEmpty = false; break; }
         }
-        if (allEmpty) { S.pattern.raw[slotBase] = PLOCK_TYPE_UNUSED; S.pattern.raw[slotBase + 1] = PLOCK_TYPE_UNUSED; }
+        if (allEmpty) {
+          S.pattern.raw[slotBase] = PLOCK_TYPE_UNUSED;
+          S.pattern.raw[slotBase + 1] = PLOCK_TYPE_UNUSED;
+          // Also deallocate any fine companion in the next slot to prevent orphans
+          const nextSi = slotIdx + 1;
+          if (nextSi < NUM_PLOCK_SEQS) {
+            const nb = PLOCK_SEQS_BASE + nextSi * PLOCK_SEQ_SZ;
+            if (S.pattern.raw[nb] === PLOCK_FINE_FLAG && S.pattern.raw[nb + 1] === PLOCK_FINE_FLAG) {
+              S.pattern.raw[nb] = PLOCK_TYPE_UNUSED;
+              S.pattern.raw[nb + 1] = PLOCK_TYPE_UNUSED;
+            }
+          }
+        }
       } else if (val !== PLOCK_NO_VALUE && freeBase >= 0) {
         // Allocate new slot
         S.pattern.raw[freeBase] = pt;
@@ -1378,8 +1420,11 @@ var setStatus = AR.setStatus;
       // else: no slot found and val is cleared — nothing to do
     }
 
-    // Clear the fine companion for a coarse plock on a given step.
-    // Must be called BEFORE writePlock if the coarse slot may be deallocated.
+    // Clear the fine companion value for a single step.  Deallocates the fine
+    // slot if all its steps become empty.
+    // IMPORTANT: call BEFORE writePlock when clearing a coarse value — if
+    // writePlock deallocates the coarse slot first, the fine companion becomes
+    // orphaned (type/track 0x80 with no preceding coarse to pair with).
     function clearPlockFine(t, pt, s) {
       if (!S.pattern.raw) return;
       for (let si = 0; si < NUM_PLOCK_SEQS; si++) {
@@ -1404,7 +1449,10 @@ var setStatus = AR.setStatus;
     }
 
     // Write a fine value to the fine companion of a coarse plock.
-    // Creates the companion if it doesn't exist (requires adjacent free slot).
+    // If the companion slot doesn't exist yet, it is created in slot N+1
+    // (requires that slot to be free).  If slot N+1 is occupied by another
+    // coarse plock, the fine value is silently dropped — this matches the AR's
+    // own behaviour when plock slots are exhausted.
     function writePlockFine(t, pt, s, fineVal) {
       if (!S.pattern.raw) return;
       // Find coarse slot
@@ -1535,21 +1583,16 @@ var setStatus = AR.setStatus;
         } else if (info.noteLen) {
           displayFn = (v) => v >= 128 ? 'TRK' : noteLenDisplay(noteLenVal(v));
         } else if (info.pct200) {
-          // 0-127 displayed as 0-198% (64 = 100%)
-          displayFn = (v) => v >= 128 ? 'TRK' : Math.round(v * 200 / 128);
+          displayFn = displayPct200;
         } else if (info.inf127) {
-          displayFn = (v) => v >= 128 ? 'TRK' : v === 127 ? '\u221E' : String(v);
+          displayFn = displayInf127;
         } else if (info.lfoPhase) {
-          displayFn = (v) => v >= 128 ? 'TRK' : Math.round(v * 360 / 128) + '\u00B0';
+          displayFn = displayLfoPhase;
         } else if (info.bipolar) {
-          displayFn = (v) => {
-            if (v >= 128) return 'TRK';
-            const sv = v - 64;
-            return (sv >= 0 ? '+' : '') + sv;
-          };
+          displayFn = displayBipolar;
           snap = 64; snapR = 3;
         } else {
-          displayFn = (v) => v >= 128 ? 'TRK' : v;
+          displayFn = displayPlain;
         }
 
         // Convert raw internal IDs to UI indices for FX LFO dest slider
@@ -1642,16 +1685,16 @@ var setStatus = AR.setStatus;
       let decimalHR = null, machInf127 = false, isFreqParam = false;
 
       if (secKey === 'SRC' && pt <= PLOCK_SYNTH_PARAM_MAX && machineType !== null && machineType !== undefined) {
-        if (MACHINE_ENUMS[machineType]?.[pt]) enumArr = MACHINE_ENUMS[machineType][pt];
-        if (MACHINE_BIPOLAR[machineType]?.has(pt)) isBipolar = true;
-        const decCfg = MACHINE_DECIMAL[machineType];
-        if (decCfg && decCfg[pt] !== undefined) {
-          decimalHR = decCfg[pt];
+        const mach = MACHINES[machineType];
+        if (mach.enums?.[pt]) enumArr = mach.enums[pt];
+        if (mach.bipolar?.has(pt)) isBipolar = true;
+        if (mach.decimal?.[pt] !== undefined) {
+          decimalHR = mach.decimal[pt];
           isBipolar = true;
         }
-        if (MACHINE_FREQ[machineType]?.has(pt)) isFreqParam = true;
+        if (mach.freq?.has(pt)) isFreqParam = true;
         if (lbl === 'TUN') isBipolar = true;
-        if (MACHINE_INF127[machineType]?.has(pt)) machInf127 = true;
+        if (mach.inf127?.has(pt)) machInf127 = true;
       }
 
       let displayFn, pMin = 0, pMax = 128, snap, snapR;
@@ -1660,7 +1703,7 @@ var setStatus = AR.setStatus;
         displayFn = (v) => v >= enumLen ? 'TRK' : (enumArr[v] ?? String(v));
         pMax = enumLen;
       } else if (machInf127) {
-        displayFn = (v) => v >= 128 ? 'TRK' : v === 127 ? '\u221E' : String(v);
+        displayFn = displayInf127;
       } else if (isFreqParam) {
         pMin = 0; pMax = 16257;
         displayFn = (v) => v >= 16256 ? 'TRK' : v + 'Hz';
@@ -1676,22 +1719,14 @@ var setStatus = AR.setStatus;
           };
           snap = sliderHalf; snapR = 3;
         } else {
-          displayFn = (v) => {
-            if (v >= 128) return 'TRK';
-            const sv = v - 64;
-            return (sv >= 0 ? '+' : '') + sv;
-          };
+          displayFn = displayBipolar;
           snap = 64; snapR = 3;
         }
       } else if (info.pan) {
-        displayFn = (v) => {
-          if (v >= 128) return 'TRK';
-          if (v === 64) return 'C';
-          return v < 64 ? 'L' + (64 - v) : 'R' + (v - 64);
-        };
+        displayFn = displayPan;
         snap = 64; snapR = 3;
       } else if (info.inf127) {
-        displayFn = (v) => v >= 128 ? 'TRK' : v === 127 ? '\u221E' : String(v);
+        displayFn = displayInf127;
       } else if (info.lfoDest) {
         const destCount = LFO_DEST_UI_IDS.length;
         displayFn = (v) => {
@@ -1700,9 +1735,9 @@ var setStatus = AR.setStatus;
         };
         pMax = destCount;
       } else if (info.lfoPhase) {
-        displayFn = (v) => v >= 128 ? 'TRK' : Math.round(v * 360 / 128) + '\u00B0';
+        displayFn = displayLfoPhase;
       } else {
-        displayFn = (v) => v >= 128 ? 'TRK' : v;
+        displayFn = displayPlain;
       }
 
       return { displayFn, pMin, pMax, snap, snapR, isFreqParam, decimalHR };
@@ -1867,7 +1902,7 @@ var setStatus = AR.setStatus;
         let lbl = info.lbl;
         if (secKey === 'SRC' && machineType !== null && machineType !== undefined
             && pt <= PLOCK_SYNTH_PARAM_MAX) {
-          const ml = MACHINE_PARAM_NAMES[pt][machineType];
+          const ml = MACHINES[machineType].params[pt];
           if (ml === '-') continue;
           if (ml) lbl = ml;
         }
@@ -2153,7 +2188,7 @@ var setStatus = AR.setStatus;
       const off = KIT_TRACKS_BASE + trackIdx * AR_SOUND_V5_SZ + MACHINE_TYPE_OFFSET;
       if (off >= S.pattern.kit.length) return null;
       const mt = S.pattern.kit[off];
-      return (mt < MACHINE_NAMES.length) ? mt : null;
+      return (mt < MACHINES.length) ? mt : null;
     }
 
 

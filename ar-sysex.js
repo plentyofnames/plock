@@ -7,7 +7,14 @@
       return bank + slot;
     }
 
-    // ─── 7-bit SysEx → 8-bit raw decode ──────────────────────────────────────
+    // ─── 7-bit ↔ 8-bit SysEx codec ─────────────────────────────────────────
+    //
+    // SysEx encodes 8-bit data in groups of 7 bytes → 8 sysex bytes:
+    //   sysex byte 0:     MSB collector — bit (6-k) carries byte k's bit 7
+    //   sysex bytes 1-7:  low 7 bits of each data byte
+    //
+    // Both encode and decode iterate in groups, using the same bit-position
+    // expression  1 << (6 - k)  to map data byte k (0-6) to its MSB flag.
 
     function decodeSysex7to8(syx) {
       const dataStart = 10;
@@ -15,58 +22,30 @@
       const syxDatSz  = dataEnd - dataStart;
       if (syxDatSz <= 0) throw new Error('Empty payload');
 
-      const raw  = [];
-      let pkbNr  = 0;
-      let msbs   = 0;
-
-      for (let i = 0; i < syxDatSz; i++) {
-        const b = syx[dataStart + i];
-        if (pkbNr === 0) {
-          msbs = b;
-        } else {
-          raw.push(b | (msbs & 0x80));
+      const raw = [];
+      for (let i = 0; i < syxDatSz; ) {
+        const msbs = syx[dataStart + i++];
+        for (let k = 0; k < 7 && i < syxDatSz; k++, i++) {
+          raw.push(syx[dataStart + i] | ((msbs & (1 << (6 - k))) ? 0x80 : 0));
         }
-        msbs  = (msbs << 1) & 0xFF;
-        pkbNr = (pkbNr + 1) & 7;
       }
-
       return new Uint8Array(raw);
     }
-
-    // ─── 8-bit raw → 7-bit SysEx encode (inverse of decode) ─────────────────
-    // Ported from libanalogrytm/sysex.c ar_sysex_encode
 
     function encodeSysex8to7(raw) {
       const out = [];
       let chksum = 0;
-      let pkbNr = 0;
-      let msbs = 0;
-      let msbIdx = -1;
 
-      for (let i = 0; i < raw.length; i++) {
-        const c = raw[i];
-
-        if (pkbNr === 0) {
-          msbs = (c & 0x80) >> 1;
-          msbIdx = out.length;
-          out.push(0);  // placeholder for MSB byte
-        } else {
-          msbs |= (c & 0x80) >> (1 + pkbNr);
+      for (let i = 0; i < raw.length; ) {
+        let msbs = 0;
+        const msbIdx = out.length;
+        out.push(0);  // placeholder for MSB byte
+        const groupEnd = Math.min(i + 7, raw.length);
+        for (let k = 0; i < groupEnd; k++, i++) {
+          if (raw[i] & 0x80) msbs |= (1 << (6 - k));
+          out.push(raw[i] & 0x7F);
+          chksum += (raw[i] & 0x7F);
         }
-
-        out.push(c & 0x7F);
-        chksum += (c & 0x7F);
-        pkbNr++;
-
-        if (pkbNr === 7) {
-          chksum += msbs;
-          out[msbIdx] = msbs;
-          pkbNr = 0;
-        }
-      }
-
-      // Finish last partial packet
-      if (pkbNr > 0) {
         out[msbIdx] = msbs;
         chksum += msbs;
       }

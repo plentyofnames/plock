@@ -39,6 +39,52 @@ var setStatus = AR.setStatus;
       return v >= 128 ? 'TRK' : v;
     }
 
+    // ─── Click-to-edit helper ──────────────────────────────────────────────
+    // Attaches a click handler that replaces a span's text with an input field.
+    // Used by track settings, metadata fields, and master length/change fields.
+    //
+    // el:          the span element to make editable
+    // displayText: text to restore on cancel (string)
+    // editVal:     initial input value
+    // opts:        { type, className, width, onCommit(inputValue), onCancel? }
+    //              onCancel defaults to restoring displayText
+
+    function attachClickToEdit(el, displayText, editVal, opts) {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (el.querySelector('input')) return;
+        const inp = document.createElement('input');
+        inp.type = opts.type || 'text';
+        inp.className = opts.className || 'meta-input';
+        if (opts.width) inp.style.width = opts.width;
+        inp.value = editVal;
+        el.textContent = '';
+        el.appendChild(inp);
+        inp.focus();
+        inp.select();
+        let done = false;
+        const commit = () => {
+          if (done) return;
+          done = true;
+          opts.onCommit(inp.value);
+        };
+        const cancel = () => {
+          if (done) return;
+          done = true;
+          if (opts.onCancel) opts.onCancel();
+          else el.textContent = displayText;
+        };
+        inp.addEventListener('keydown', (ke) => {
+          if (ke.key === 'Enter')  { ke.preventDefault(); commit(); }
+          if (ke.key === 'Escape') { ke.preventDefault(); cancel(); }
+          ke.stopPropagation();
+        });
+        inp.addEventListener('blur', () => {
+          setTimeout(() => { if (!done) commit(); }, 0);
+        });
+      });
+    }
+
     function gridStepCenterX(pageIdx) {
       const g = Math.floor(pageIdx / GRID_GROUP_SZ);
       const s = pageIdx % GRID_GROUP_SZ;
@@ -455,37 +501,9 @@ var setStatus = AR.setStatus;
         grp.appendChild(v);
         panel.appendChild(grp);
 
-        v.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (v.querySelector('input')) return;
-          const inp = document.createElement('input');
-          inp.type = 'number';
-          inp.className = 'ts-input';
-          inp.style.width = width || '40px';
-          inp.value = editVal;
-          v.textContent = '';
-          v.appendChild(inp);
-          inp.focus();
-          inp.select();
-          let done = false;
-          const commit = () => {
-            if (done) return;
-            done = true;
-            onCommit(inp.value);
-          };
-          const cancel = () => {
-            if (done) return;
-            done = true;
-            v.textContent = displayText;
-          };
-          inp.addEventListener('keydown', (ke) => {
-            if (ke.key === 'Enter')  { ke.preventDefault(); commit(); }
-            if (ke.key === 'Escape') { ke.preventDefault(); cancel(); }
-            ke.stopPropagation();
-          });
-          inp.addEventListener('blur', () => {
-            setTimeout(() => { if (!done) commit(); }, 0);
-          });
+        attachClickToEdit(v, displayText, editVal, {
+          type: 'number', className: 'ts-input', width: width || '40px',
+          onCommit,
         });
       };
 
@@ -533,28 +551,14 @@ var setStatus = AR.setStatus;
         }));
         panel.appendChild(lenGrp);
         // Text entry on click
-        lenVal.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (lenVal.querySelector('input')) return;
-          const inp = document.createElement('input');
-          inp.type = 'number'; inp.className = 'ts-input'; inp.style.width = '40px';
-          inp.value = numSteps;
-          lenVal.textContent = ''; lenVal.appendChild(inp);
-          inp.focus(); inp.select();
-          let done = false;
-          const commit = () => {
-            if (done) return; done = true;
-            const n = parseInt(inp.value, 10);
+        attachClickToEdit(lenVal, String(numSteps), numSteps, {
+          type: 'number', className: 'ts-input', width: '40px',
+          onCommit: (v) => {
+            const n = parseInt(v, 10);
             if (!isNaN(n) && n >= 1 && n <= 64) raw[trackBase + NUM_STEPS_OFFSET] = n;
             refreshAfterEdit();
-          };
-          const cancel = () => { if (done) return; done = true; refreshAfterEdit(); };
-          inp.addEventListener('keydown', (ke) => {
-            if (ke.key === 'Enter') { ke.preventDefault(); commit(); }
-            if (ke.key === 'Escape') { ke.preventDefault(); cancel(); }
-            ke.stopPropagation();
-          });
-          inp.addEventListener('blur', () => { setTimeout(() => { if (!done) commit(); }, 0); });
+          },
+          onCancel: refreshAfterEdit,
         });
 
         // Advanced: Spd arrows-only
@@ -749,38 +753,9 @@ var setStatus = AR.setStatus;
       wrap.appendChild(v);
       target.appendChild(wrap);
 
-      v.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (v.querySelector('input')) return;
-        const inp = document.createElement('input');
-        inp.type = 'text';
-        inp.className = 'meta-input';
-        inp.value = editVal;
-        if (inputOpts && inputOpts.width) inp.style.width = inputOpts.width;
-        v.textContent = '';
-        v.appendChild(inp);
-        inp.focus();
-        inp.select();
-
-        let done = false;
-        const commit = () => {
-          if (done) return;
-          done = true;
-          onCommit(inp.value);
-        };
-        const cancel = () => {
-          if (done) return;
-          done = true;
-          v.textContent = displayVal;
-        };
-        inp.addEventListener('keydown', (ke) => {
-          if (ke.key === 'Enter')  { ke.preventDefault(); commit(); }
-          if (ke.key === 'Escape') { ke.preventDefault(); cancel(); }
-          ke.stopPropagation();
-        });
-        inp.addEventListener('blur', () => {
-          setTimeout(() => { if (!done) commit(); }, 0);
-        });
+      attachClickToEdit(v, displayVal, editVal, {
+        width: inputOpts?.width,
+        onCommit,
       });
     }
 
@@ -941,18 +916,10 @@ var setStatus = AR.setStatus;
         }
       };
 
-      v.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (v.querySelector('input')) return;
-        const inp = document.createElement('input');
-        inp.type = 'text'; inp.className = 'meta-input'; inp.style.width = '40px';
-        inp.value = disp;
-        v.textContent = ''; v.appendChild(inp);
-        inp.focus(); inp.select();
-        let done = false;
-        const commit = () => {
-          if (done) return; done = true;
-          const upper = inp.value.trim().toUpperCase();
+      attachClickToEdit(v, disp, disp, {
+        width: '40px',
+        onCommit: (val) => {
+          const upper = val.trim().toUpperCase();
           let n;
           if (!scaleMode) {
             n = parseInt(upper, 10);
@@ -964,14 +931,8 @@ var setStatus = AR.setStatus;
           }
           writeLen(n);
           refreshAfterEdit();
-        };
-        const cancel = () => { if (done) return; done = true; refreshAfterEdit(); };
-        inp.addEventListener('keydown', (ke) => {
-          if (ke.key === 'Enter')  { ke.preventDefault(); commit(); }
-          if (ke.key === 'Escape') { ke.preventDefault(); cancel(); }
-          ke.stopPropagation();
-        });
-        inp.addEventListener('blur', () => { setTimeout(() => { if (!done) commit(); }, 0); });
+        },
+        onCancel: refreshAfterEdit,
       });
 
       wrap.appendChild(metaArrowBtn('▼', () => {
@@ -1015,31 +976,17 @@ var setStatus = AR.setStatus;
       v.textContent = disp;
       wrap.appendChild(v);
 
-      v.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (v.querySelector('input')) return;
-        const inp = document.createElement('input');
-        inp.type = 'text'; inp.className = 'meta-input'; inp.style.width = '40px';
-        inp.value = disp;
-        v.textContent = ''; v.appendChild(inp);
-        inp.focus(); inp.select();
-        let done = false;
-        const commit = () => {
-          if (done) return; done = true;
-          const upper = inp.value.trim().toUpperCase();
+      attachClickToEdit(v, disp, disp, {
+        width: '40px',
+        onCommit: (val) => {
+          const upper = val.trim().toUpperCase();
           let n;
           if (upper === 'OFF' || upper === '') n = 1;
           else { n = parseInt(upper, 10); if (isNaN(n) || n < 2) n = 1; if (n >= 1024) n = 0; }
           writeU16BE(raw, MASTER_CHG_OFFSET, n);
           refreshAfterEdit();
-        };
-        const cancel = () => { if (done) return; done = true; refreshAfterEdit(); };
-        inp.addEventListener('keydown', (ke) => {
-          if (ke.key === 'Enter') { ke.preventDefault(); commit(); }
-          if (ke.key === 'Escape') { ke.preventDefault(); cancel(); }
-          ke.stopPropagation();
-        });
-        inp.addEventListener('blur', () => { setTimeout(() => { if (!done) commit(); }, 0); });
+        },
+        onCancel: refreshAfterEdit,
       });
 
       const readChg = () => readU16BE(raw, MASTER_CHG_OFFSET);

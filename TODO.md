@@ -60,9 +60,11 @@ fine slots. All plock read/write functions have explanatory comments.
 - `refreshAfterEdit()` re-renders all 832 cells + metadata + panels for any change
 - Consider incremental update: only re-render affected step/track/panel
 
-### 11. Duplicate editable-field UI patterns
-- `buildTrackSettingsPanel()` and `renderMeta()` both create similar inline-edit fields
-- Extract a shared `makeEditableField()` helper
+### 11. ~~Duplicate editable-field UI patterns~~ ✅
+Extracted `attachClickToEdit(el, displayText, editVal, opts)` helper shared by
+`addVal` (track settings), `metaField` (pattern metadata), `buildMasterLenField`,
+`buildMasterChgField`, and the advanced-scale Len field. Removes ~100 lines of
+duplicated click→input→commit/cancel/blur boilerplate.
 
 ### 12. Inconsistent naming conventions
 - `TRACK_V5_SZ` vs `AR_PATTERN_V5_SZ` (version suffix unclear)
@@ -76,9 +78,11 @@ Both `buildFxParamSection` and `buildParamDisplayConfig` now use these instead o
 duplicating inline lambdas. Decimal and freq display remain inline where they need
 closure-captured config (slider half-range, etc.).
 
-### 14. `decodeSysex7to8` / `encodeSysex8to7` share no code
-- Inverse operations implemented independently
-- Could share bit-manipulation helpers
+### 14. ~~`decodeSysex7to8` / `encodeSysex8to7` share no code~~ ✅
+Rewrote both as group-based loops (7 data bytes per group) using the same
+bit-position expression `1 << (6 - k)` for MSB flag mapping. Both now
+clearly show the packet structure and read as true inverses. Header comment
+documents the shared encoding scheme.
 
 ### 15. No input validation on parameter writes
 - Writing plock values or kit params has no bounds checking
@@ -111,6 +115,19 @@ closure-captured config (slider half-range, etc.).
   - Show the machine name for each sound lock
   - Warn when a sound lock's machine doesn't match the track
   - Use correct pool sound defaults when displaying plock values for locked steps
+
+## Bug Fixes / Accuracy
+
+### 20. Fix parameter display order to correspond to hardware
+- Parameter rows in the step inspector should match the order shown on the AR's screen
+- Verify against hardware for each section (SRC, SMPL, FLTR, AMP, LFO)
+
+### 21. Audit all parameters for correct scale and display
+- Go through every parameter across all 34 machines and verify:
+  - Slider range matches hardware range
+  - Display value formatting matches what the AR shows
+  - Bipolar/decimal/enum/freq flags are correct
+  - Default values read correctly from kit/sound
 
 ## Documentation
 

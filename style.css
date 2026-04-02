@@ -35,6 +35,14 @@ h1 {
   letter-spacing: 1px;
   margin-bottom: 24px;
 }
+.subtitle a {
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.subtitle a:hover {
+  color: var(--fg);
+}
 
 /* Controls */
 .controls {

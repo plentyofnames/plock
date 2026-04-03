@@ -274,96 +274,127 @@
     //
     // Ported from libanalogrytm/sound.c (ar_sound_machine_param_short_names et al.)
 
+    // srcOrder: display order of SRC params on AR screen (indices into params[])
+    // Derived from Appendix D of the Analog Rytm MKII manual.
     const MACHINES = [
-      // 0
+      // 0  — manual: TUN, SWT, SNP, DEC, WAV, HLD, TIC, LEV
       { name: 'BD HARD', params: ['LEV','TUN','DEC','HLD','SWT','SNP','WAV','TIC'],
+        srcOrder: [1,4,5,2,6,3,7,0],
         decimal: { 1: 32 }, enums: { 6: ['sin','asin','tri'] } },
-      // 1
-      { name: 'BD CLASSIC', params: ['LEV','TUN','DEC','HLD','SWT','SWP','WAV','TRA'],
+      // 1  — manual: TUN, SWT, SWD, DEC, WAV, HLD, TRA, LEV
+      { name: 'BD CLASSIC', params: ['LEV','TUN','DEC','HLD','SWT','SWD','WAV','TRA'],
+        srcOrder: [1,4,5,2,6,3,7,0],
         decimal: { 1: 32 },
         enums: { 6: ['sin','asin','tri'],
           7: ['OFF','Tic',
               'A1','B1','C1','D1','E1', 'A2','B2','C2','D2','E2',
               'A3','B3','C3','D3','E3', 'A4','B4','C4','D4','E4',
               'A5','B5','C5','D5','E5'] } },
-      // 2
+      // 2  — manual: TUN, SWT, SWD, DEC, TIC, NOD, NOL, LEV
       { name: 'SD HARD', params: ['LEV','TUN','DEC','SWD','TIC','NOD','NOL','SWT'],
+        srcOrder: [1,7,3,2,4,5,6,0],
         decimal: { 1: 32 } },
-      // 3
+      // 3  — manual: TUN, DET, BAL, DEC, SNP, NOD, NOL, LEV
       { name: 'SD CLASSIC', params: ['LEV','TUN','DEC','DET','SNP','NOD','NOL','BAL'],
+        srcOrder: [1,3,7,2,4,5,6,0],
         decimal: { 1: 32 }, bipolar: new Set([7]) },
-      // 4
-      { name: 'RS HARD', params: ['LEV','TUN','DEC','SWD','TIC','NOL','SYN','SWT'],
+      // 4  — manual: TUN, SWT, SWD, DEC, SYM, TIC, NOL, LEV
+      { name: 'RS HARD', params: ['LEV','TUN','DEC','SWD','TIC','NOL','SYM','SWT'],
+        srcOrder: [1,7,3,2,6,4,5,0],
         decimal: { 1: 32 } },
-      // 5
+      // 5  — manual: T1, T2, BAL, DEC, SYM, TIC, NOL, LEV
       { name: 'RS CLASSIC', params: ['LEV','T1','DEC','BAL','T2','SYM','NOL','TIC'],
+        srcOrder: [1,4,3,2,5,7,6,0],
         bipolar: new Set([3,4,5]), decimal: { 1: 32, 4: 32 } },
-      // 6
-      { name: 'CP CLASSIC', params: ['LEV','TON','NOD','NUM','RAT','NOL','RND','CPD'] },
-      // 7
+      // 6  — manual: RAT, NUM, RND, CPD, TON, NOD, NOL, LEV
+      { name: 'CP CLASSIC', params: ['LEV','TON','NOD','NUM','RAT','NOL','RND','CPD'],
+        srcOrder: [4,3,6,7,1,2,5,0] },
+      // 7  — manual: TUN, SWD, DEC, SNP, NOL, LEV
       { name: 'BT CLASSIC', params: ['LEV','TUN','DEC','-','NOL','SNP','SWD','-'],
+        srcOrder: [1,6,2,5,4,0],
         enums: { 5: ['1','2','3'] } },
-      // 8
+      // 8  — manual: TUN, SWT, SWD, DEC, TON, NOD, NOL, LEV
       { name: 'XT CLASSIC', params: ['LEV','TUN','DEC','SWD','SWT','NOD','NOL','TON'],
+        srcOrder: [1,4,3,2,7,5,6,0],
         bipolar: new Set([7]) },
-      // 9
+      // 9  — manual: TUN, DEC, COL, LEV
       { name: 'CH CLASSIC', params: ['LEV','TUN','DEC','COL','-','-','-','-'],
+        srcOrder: [1,2,3,0],
         bipolar: new Set([3]) },
-      // 10
+      // 10 — manual: TUN, DEC, COL, LEV
       { name: 'OH CLASSIC', params: ['LEV','TUN','DEC','COL','-','-','-','-'],
+        srcOrder: [1,2,3,0],
         bipolar: new Set([3]) },
-      // 11
+      // 11 — manual: TUN, TON, DEC, COL, LEV
       { name: 'CY CLASSIC', params: ['LEV','TUN','DEC','COL','TON','-','-','-'],
+        srcOrder: [1,4,2,3,0],
         bipolar: new Set([3,4]) },
-      // 12
+      // 12 — manual: TUN, DEC, DET, PW1, PW2, LEV
       { name: 'CB CLASSIC', params: ['LEV','TUN','DEC','DET','PW1','PW2','-','-'],
+        srcOrder: [1,2,3,4,5,0],
         bipolar: new Set([4,5]) },
-      // 13
+      // 13 — manual: TUN, SWT, FMD, DEC, FMT, FMS, FMA, LEV
       { name: 'BD FM', params: ['LEV','TUN','DEC','FMA','SWT','FMS','FMD','FMT'],
+        srcOrder: [1,4,6,2,7,5,3,0],
         bipolar: new Set([7]), decimal: { 1: 32, 7: 32 } },
-      // 14
+      // 14 — manual: TUN, FMT, FMD, DEC, FMA, NOD, NOL, LEV
       { name: 'SD FM', params: ['LEV','TUN','DEC','FMT','FMD','NOD','NOL','FMA'],
+        srcOrder: [1,3,4,2,7,5,6,0],
         bipolar: new Set([3,7]), decimal: { 1: 32, 3: 32 } },
-      // 15
+      // 15 — manual: LPF, LPQ, ATK, DEC, HPF, SWD, SWT, LEV
       { name: 'UT NOISE', params: ['LEV','LPF','DEC','HPF','LPQ','ATK','SWT','SWD'],
+        srcOrder: [1,4,5,2,3,7,6,0],
         bipolar: new Set([7]) },
-      // 16
+      // 16 — manual: ATK, DEC, POL, LEV
       { name: 'UT IMPULSE', params: ['LEV','ATK','DEC','-','-','-','-','POL'],
+        srcOrder: [1,2,7,0],
         enums: { 7: ['POS','NEG'] } },
-      // 17
-      { name: 'CH METALLIC', params: ['LEV','TUN','DEC','-','-','-','-','-'] },
-      // 18
-      { name: 'OH METALLIC', params: ['LEV','TUN','DEC','-','-','-','-','-'] },
-      // 19
+      // 17 — manual: TUN, DEC, LEV
+      { name: 'CH METALLIC', params: ['LEV','TUN','DEC','-','-','-','-','-'],
+        srcOrder: [1,2,0] },
+      // 18 — manual: TUN, DEC, LEV
+      { name: 'OH METALLIC', params: ['LEV','TUN','DEC','-','-','-','-','-'],
+        srcOrder: [1,2,0] },
+      // 19 — manual: TUN, TON, TRD, DEC, LEV
       { name: 'CY METALLIC', params: ['LEV','TUN','DEC','TON','TRD','-','-','-'],
+        srcOrder: [1,3,4,2,0],
         bipolar: new Set([3]) },
-      // 20
+      // 20 — manual: TUN, DEC, DET, PW1, PW2, LEV
       { name: 'CB METALLIC', params: ['LEV','TUN','DEC','DET','PW1','PW2','-','-'],
+        srcOrder: [1,2,3,4,5,0],
         bipolar: new Set([4,5]) },
-      // 21
+      // 21 — manual: TUN, SWT, SWD, DEC, TYP, MOD, TIC, LEV
       { name: 'BD PLASTIC', params: ['LEV','TUN','DEC','TYP','MOD','SWT','SWD','TIC'],
+        srcOrder: [1,5,6,2,3,4,7,0],
         decimal: { 1: 32 }, enums: { 3: ['A','B'] } },
-      // 22
+      // 22 — manual: TUN, SWT, SWD, DEC, HLD, DUS, CLK, LEV
       { name: 'BD SILKY', params: ['LEV','TUN','DEC','HLD','SWT','SWD','DUS','CLK'],
+        srcOrder: [1,4,5,2,3,6,7,0],
         decimal: { 1: 32 } },
-      // 23
-      { name: 'SD NATURAL', params: ['LEV','TUN','BDY','DEC','BAL','LPF','LPF','RES'],
+      // 23 — manual: TUN, DEC, BAL, BDY, HPF, LPF, RES, LEV
+      { name: 'SD NATURAL', params: ['LEV','TUN','BDY','DEC','BAL','HPF','LPF','RES'],
+        srcOrder: [1,3,4,2,5,6,7,0],
         decimal: { 1: 32 } },
-      // 24
+      // 24 — manual: TUN, TON, TRD, DEC, RST, LEV
       { name: 'HH BASIC', params: ['LEV','TUN','DEC','TON','TRD','RST','-','-'],
+        srcOrder: [1,3,4,2,5,0],
         bipolar: new Set([3]), enums: { 5: ['OFF','ON'] } },
-      // 25
+      // 25 — manual: TUN, TYP, HIT, DEC, C1, C2, C3, LEV
       { name: 'CY RIDE', params: ['LEV','TUN','DEC','TYP','HIT','C1','C2','C3'],
+        srcOrder: [1,3,4,2,5,6,7,0],
         enums: { 3: ['A','B','C','D'] } },
-      // 26
+      // 26 — manual: TUN, SWT, SWD, DEC, HLD, TIC, WAV, LEV
       { name: 'BD SHARP', params: ['LEV','TUN','DEC','HLD','SWT','SWD','WAV','TIC'],
+        srcOrder: [1,4,5,2,3,7,6,0],
         decimal: { 1: 32 },
         enums: { 6: ['sinA','sinB','asinA','asinB','triA','triB',
                      'ssawA','ssawB','sawA','sawB','sqrA','sqrB'] } },
       // 27
-      { name: 'DISABLE', params: ['-','-','-','-','-','-','-','-'] },
-      // 28
+      { name: 'DISABLE', params: ['-','-','-','-','-','-','-','-'],
+        srcOrder: [] },
+      // 28 — manual: TUN, DET, DEC1, DEC2, CFG, BND, BAL, LEV
       { name: 'SY DUAL VCO', params: ['LEV','TUN','DEC1','DET','DEC2','BAL','BND','CFG'],
+        srcOrder: [1,3,2,4,7,6,5,0],
         bipolar: new Set([5,6]), decimal: { 1: 32, 3: 16 }, inf127: new Set([2,4]),
         enums: { 7: (() => {
               // 4 modes × 2 osc1 × 5 osc2 × 2 reset = 80
@@ -378,8 +409,9 @@
                       arr.push(m + ' ' + o1 + '.' + o2 + (r ? '\u0332' : ''));
               return arr;
             })() } },
-      // 29
-      { name: 'SY CHIP', params: ['LEV','TUN','DCY','OF2','OF3','OF4','WAV','SPD'],
+      // 29 — hardware: TUN, WAV, SPD, DEC, OF2, OF3, OF4, LEV
+      { name: 'SY CHIP', params: ['LEV','TUN','DEC','OF2','OF3','OF4','WAV','SPD'],
+        srcOrder: [1,6,7,2,3,4,5,0],
         bipolar: new Set([3,4,5]), decimal: { 1: 24 }, inf127: new Set([2]),
         enums: {
           6: ['sin','asin','tri','ssaw','saw','sqr','noise',
@@ -395,21 +427,25 @@
               '200Hz','240Hz','250Hz','300Hz','350Hz','360Hz','400Hz','420Hz',
               '480Hz','240S','200S','150S','120S','100S',
               '60S','50S','30S','25S'] } },
-      // 30
+      // 30 — manual: TUN, SWT, SWD, DEC, HLD, IMP, WAV, LEV
       { name: 'BD ACOUSTIC', params: ['LEV','TUN','DEC','HLD','SWT','SWD','WAV','IMP'],
+        srcOrder: [1,4,5,2,3,7,6,0],
         decimal: { 1: 24 },
         enums: { 6: ['sinA','sinB','asinA','asinB','triA','triB',
                      'ssawA','ssawB','sawA','sawB','sqrA','sqrB'] } },
-      // 31
+      // 31 — manual: TUN, NOD, NOL, BDY, HLD, IMP, SWD, LEV
       { name: 'SD ACOUSTIC', params: ['LEV','TUN','BDY','NOD','NOL','HLD','SWD','IMP'],
+        srcOrder: [1,3,4,2,5,7,6,0],
         decimal: { 1: 24 } },
-      // 32
+      // 32 — manual: TUN, DET, BAL, DCY, WAV1, WAV2, NOL, LEV
       { name: 'SY RAW', params: ['LEV','TUN','DCY','DET','NOL','WAV1','WAV2','BAL'],
+        srcOrder: [1,3,7,2,5,6,4,0],
         bipolar: new Set([3,7]), decimal: { 1: 24, 3: 24 }, inf127: new Set([2]),
         enums: { 5: ['sin','asin','tri','ssaw','asaw','saw','ring'],
                  6: ['sineA','ssawA','sineB','ssawB'] } },
-      // 33
+      // 33 — manual: OSC1–6, DEC, LEV
       { name: 'HH LAB', params: ['LEV','OSC1','DEC','OSC2','OSC3','OSC4','OSC5','OSC6'],
+        srcOrder: [1,3,4,5,6,7,2,0],
         freq: new Set([1,3,4,5,6,7]) },
     ];
 
@@ -472,8 +508,8 @@
 
     // FX LFO destination names (indexed by FX-specific dest ID, 0-28 + 37=NONE)
     const FX_LFO_DEST_NAMES = [];
-    FX_LFO_DEST_NAMES[0]  = 'DEL:TIM'; FX_LFO_DEST_NAMES[1]  = 'DEL:PP';
-    FX_LFO_DEST_NAMES[2]  = 'DEL:WID'; FX_LFO_DEST_NAMES[3]  = 'DEL:FB';
+    FX_LFO_DEST_NAMES[0]  = 'DEL:TIM'; FX_LFO_DEST_NAMES[1]  = 'DEL:X';
+    FX_LFO_DEST_NAMES[2]  = 'DEL:WID'; FX_LFO_DEST_NAMES[3]  = 'DEL:FDB';
     FX_LFO_DEST_NAMES[4]  = 'DEL:HPF'; FX_LFO_DEST_NAMES[5]  = 'DEL:LPF';
     FX_LFO_DEST_NAMES[6]  = 'DEL:REV'; FX_LFO_DEST_NAMES[7]  = 'DEL:VOL';
     FX_LFO_DEST_NAMES[8]  = 'DEL:DOV';
@@ -589,10 +625,10 @@
 
     const FX_PLOCK_INFO = {
       // DELAY (plock types 0-7)
-      0:  { sec:'DELAY',  lbl:'TIME', kitOff:KIT_FX_DELAY_TIME, noteLen:true },
-      1:  { sec:'DELAY',  lbl:'PP',   kitOff:KIT_FX_DELAY_PINGPONG, enum:['OFF','ON'] },
+      0:  { sec:'DELAY',  lbl:'TIM',  kitOff:KIT_FX_DELAY_TIME, noteLen:true },
+      1:  { sec:'DELAY',  lbl:'X',    kitOff:KIT_FX_DELAY_PINGPONG, enum:['OFF','ON'] },
       2:  { sec:'DELAY',  lbl:'WID',  kitOff:KIT_FX_DELAY_WIDTH, bipolar:true },
-      3:  { sec:'DELAY',  lbl:'FB',   kitOff:KIT_FX_DELAY_FEEDBACK, pct200:true },
+      3:  { sec:'DELAY',  lbl:'FDB',  kitOff:KIT_FX_DELAY_FEEDBACK, pct200:true },
       4:  { sec:'DELAY',  lbl:'HPF',  kitOff:KIT_FX_DELAY_HPF },
       5:  { sec:'DELAY',  lbl:'LPF',  kitOff:KIT_FX_DELAY_LPF },
       6:  { sec:'DELAY',  lbl:'REV',  kitOff:KIT_FX_DELAY_REV_SEND },
@@ -633,8 +669,10 @@
 
     const FX_SECTION_KEYS = ['DELAY','REVERB','DIST','COMP','FX_LFO'];
 
-    // DIST display order: AMT, SYM, DOV, DEL, REV (matching AR screen)
+    // FX display order overrides (AR screen order differs from plock type order)
     const FX_SECTION_ORDER = {
+      // COMP: manual order is THR, ATK, REL, MUP, RAT, SEQ, MIX, VOL
+      'COMP': [21, 22, 23, 26, 24, 25, 27, 28],
       'DIST': [18, 19, 8, 9, 17],
     };
 

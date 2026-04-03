@@ -1838,8 +1838,13 @@ var setStatus = AR.setStatus;
       const body = document.createElement('div');
       body.className = 'sp-params';
 
-      const order = SECTION_ORDER[secKey]
+      let order = SECTION_ORDER[secKey]
         || Object.keys(PLOCK_INFO).map(Number).filter(k => PLOCK_INFO[k].sec === secKey);
+      // SRC section: use per-machine display order from manual
+      if (secKey === 'SRC' && machineType !== null && machineType !== undefined
+          && MACHINES[machineType]?.srcOrder) {
+        order = MACHINES[machineType].srcOrder;
+      }
 
       for (const pt of order) {
         const info = PLOCK_INFO[pt];

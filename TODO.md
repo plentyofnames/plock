@@ -118,9 +118,11 @@ documents the shared encoding scheme.
 
 ## Bug Fixes / Accuracy
 
-### 20. Fix parameter display order to correspond to hardware
-- Parameter rows in the step inspector should match the order shown on the AR's screen
-- Verify against hardware for each section (SRC, SMPL, FLTR, AMP, LFO)
+### 20. ~~Fix parameter display order to correspond to hardware~~ ✅
+SRC section now uses per-machine `srcOrder` arrays derived from Appendix D of the
+Analog Rytm MKII manual. All 34 machines have display-order mappings. SMPL, FLTR,
+AMP, LFO already had correct `SECTION_ORDER` overrides. Also fixed three label bugs:
+`SWP`→`SWD` (BD CLASSIC), `SYN`→`SYM` (RS HARD), duplicate `LPF`→`HPF` (SD NATURAL).
 
 ### 21. Audit all parameters for correct scale and display
 - Go through every parameter across all 34 machines and verify:

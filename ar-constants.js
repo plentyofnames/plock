@@ -182,7 +182,7 @@
 
     const AR_NUM_TRACKS              = 13;
     const AR_NUM_STEPS               = 64;
-    const TRACK_V5_SZ                = 0x0281;  // 641 bytes / track (FW1.70)
+    const AR_TRACK_V5_SZ                = 0x0281;  // 641 bytes / track (FW1.70)
     const TRIG_BITS_OFFSET           = 0;       // trig_bits[112] at track offset 0
 
     // Track field offsets from track start in raw decoded pattern.
@@ -469,11 +469,6 @@
 
     const TRACK_NAMES = ['BD','SD','RS','CP','BT','LT','MT','HT','CH','OH','CY','CB','FX'];
 
-    // ─── Plock parameter info ─────────────────────────────────────────────────
-    // Maps plock_type → { section, label, soundOff }
-    // soundOff is the byte offset within ar_sound_t (s_u16_t fields: read the
-    // first/hi byte which carries the 0-127 value; lo byte is always 0).
-
     // ─── Enum / display lookup tables ──────────────────────────────────────
 
     const FLT_TYPE_NAMES  = ['LP2','LP1','BP','HP1','HP2','BS','PK'];
@@ -560,7 +555,8 @@
     }
 
     // ─── Plock parameter info ─────────────────────────────────────────────────
-    // Maps plock_type → { section, label, soundOff, [bipolar], [enum], [pan], [inf127], [lfoDest] }
+    // Maps plock_type → { sec, lbl, sndOff, [bipolar], [enum], [pan], [inf127], [lfoDest] }
+    // sndOff = byte offset within ar_sound_t (hi byte of s_u16_t carries 0-127 value)
 
     const PLOCK_INFO = {
       0x00: { sec:'SRC',  lbl:'P1',   sndOff:SND_SYNTH_PARAM_1 },
@@ -615,7 +611,8 @@
     };
 
     // ─── FX track parameter info ──────────────────────────────────────────────
-    // FX plock type n → kit offset 0x07CA + n*2 (each param is 1 byte + 1 pad)
+    // Maps FX plock_type → { sec, lbl, kitOff, ... }
+    // kitOff = byte offset within ar_kit_t; FX plock type n → kitOff 0x07CA + n*2
     const FX_KIT_BASE = 0x07CA;
 
     // Compressor enum labels

@@ -66,10 +66,13 @@ Extracted `attachClickToEdit(el, displayText, editVal, opts)` helper shared by
 `buildMasterChgField`, and the advanced-scale Len field. Removes ~100 lines of
 duplicated click→input→commit/cancel/blur boilerplate.
 
-### 12. Inconsistent naming conventions
-- `TRACK_V5_SZ` vs `AR_PATTERN_V5_SZ` (version suffix unclear)
-- `sndOff` vs `kitOff` (different schemas for same concept in PLOCK_INFO vs FX_PLOCK_INFO)
-- Mix of `Raw` suffix with unprefixed names
+### 12. ~~Inconsistent naming conventions~~ ✅
+Renamed `TRACK_V5_SZ` → `AR_TRACK_V5_SZ` to match `AR_SOUND_V5_SZ` prefix
+convention. Fixed stale comments referencing `soundOff` to match actual property
+names (`sndOff` / `kitOff`). The `sndOff` vs `kitOff` difference is intentional:
+they index into different structs (ar_sound_t vs ar_kit_t). The `*Raw` suffix
+convention reviewed and found consistent: `*Raw` = raw byte from pattern data,
+`*Off` = byte offset, no suffix = computed/display value.
 
 ### 13. ~~Bipolar/decimal/enum conversion scattered~~ ✅
 Extracted shared display helpers (`displayBipolar`, `displayPan`, `displayInf127`,
@@ -84,9 +87,11 @@ bit-position expression `1 << (6 - k)` for MSB flag mapping. Both now
 clearly show the packet structure and read as true inverses. Header comment
 documents the shared encoding scheme.
 
-### 15. No input validation on parameter writes
-- Writing plock values or kit params has no bounds checking
-- Values should be clamped to valid range for the parameter type
+### 15. ~~No input validation on parameter writes~~ ✅
+Added bounds clamping at all write chokepoints: `writePlock` (0–127 or 0xFF
+sentinel), `writePlockFine` (0–127), `writeByte` (0–255). Also added explicit
+clamping in onChange handlers for micro-timing (±23), retrig rate (0–16),
+retrig length (0–127), and retrig velocity (−128–+127).
 
 ### 16. MIDI as global side effects
 - `onstatechange` and `onmidimessage` registered globally

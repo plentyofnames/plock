@@ -202,7 +202,7 @@
     function scanSoundLocks(raw) {
       const slots = new Set();
       for (let t = 0; t < AR_NUM_TRACKS; t++) {
-        const trackBase = 4 + t * TRACK_V5_SZ;
+        const trackBase = 4 + t * AR_TRACK_V5_SZ;
         for (let s = 0; s < AR_NUM_STEPS; s++) {
           const v = raw[trackBase + SOUND_LOCK_OFFSET + s];
           if (v !== SOUND_LOCK_NONE) slots.add(v);

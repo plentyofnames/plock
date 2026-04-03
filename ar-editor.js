@@ -327,7 +327,7 @@ var setStatus = AR.setStatus;
       let maxSteps = 0;
       for (let t = 0; t < AR_NUM_TRACKS; t++) {
         const ns = gridScaleMode
-          ? raw[4 + t * TRACK_V5_SZ + NUM_STEPS_OFFSET]
+          ? raw[4 + t * AR_TRACK_V5_SZ + NUM_STEPS_OFFSET]
           : gridMasterSteps;
         maxSteps = Math.max(maxSteps, ns);
       }
@@ -347,7 +347,7 @@ var setStatus = AR.setStatus;
 
       // ── Track rows ────────────────────────────────────────────────────────
       for (let t = 0; t < AR_NUM_TRACKS; t++) {
-        const trackBase = 4 + t * TRACK_V5_SZ;
+        const trackBase = 4 + t * AR_TRACK_V5_SZ;
         const trigBits  = raw.subarray(trackBase + TRIG_BITS_OFFSET, trackBase + 112);
         const numSteps  = gridScaleMode ? raw[trackBase + NUM_STEPS_OFFSET] : gridMasterSteps;
 
@@ -473,7 +473,7 @@ var setStatus = AR.setStatus;
 
     function buildTrackSettingsPanel(t) {
       if (!S.pattern.raw) return document.createElement('div');
-      const trackBase = 4 + t * TRACK_V5_SZ;
+      const trackBase = 4 + t * AR_TRACK_V5_SZ;
       const raw = S.pattern.raw;
 
       const panel = document.createElement('div');
@@ -645,7 +645,7 @@ var setStatus = AR.setStatus;
     }
 
     function buildStepPanel(t, s) {
-      const trackBase = 4 + t * TRACK_V5_SZ;
+      const trackBase = 4 + t * AR_TRACK_V5_SZ;
       const trigBits  = S.pattern.raw.subarray(trackBase + TRIG_BITS_OFFSET, trackBase + 112);
       const flags     = getTrigFlags(trigBits, s);
       const isOn      = (flags & AR_TRIG_ENABLE) !== 0;
@@ -858,7 +858,7 @@ var setStatus = AR.setStatus;
             raw[MASTER_LENGTH_OFFSET + 1] = 64;
           }
           for (let t = 0; t < 13; t++)
-            raw[4 + t * TRACK_V5_SZ + NUM_STEPS_OFFSET] = ml;
+            raw[4 + t * AR_TRACK_V5_SZ + NUM_STEPS_OFFSET] = ml;
         }
       };
       metaArrowField('Scale', scaleMode ? 'ADV' : 'NRM', toggleScale, toggleScale, line);
@@ -912,7 +912,7 @@ var setStatus = AR.setStatus;
         if (!scaleMode) {
           const perTrack = (n === 0 || n === 1) ? 64 : Math.min(n, 64);
           for (let t = 0; t < 13; t++)
-            raw[4 + t * TRACK_V5_SZ + NUM_STEPS_OFFSET] = perTrack;
+            raw[4 + t * AR_TRACK_V5_SZ + NUM_STEPS_OFFSET] = perTrack;
         }
       };
 
@@ -1038,7 +1038,7 @@ var setStatus = AR.setStatus;
 
     function toggleTrigFlag(t, s, bit) {
       if (!S.pattern.raw) return;
-      const trackBase = 4 + t * TRACK_V5_SZ;
+      const trackBase = 4 + t * AR_TRACK_V5_SZ;
       const trigBits  = S.pattern.raw.subarray(trackBase + TRIG_BITS_OFFSET, trackBase + 112);
       let flags     = getTrigFlags(trigBits, s);
       const enBit = PL_SW_TO_EN[bit];
@@ -1103,7 +1103,7 @@ var setStatus = AR.setStatus;
     }
 
     function buildTrigSection(t, s, flags) {
-      const trackBase = 4 + t * TRACK_V5_SZ;
+      const trackBase = 4 + t * AR_TRACK_V5_SZ;
 
       const noteRaw  = S.pattern.raw[trackBase + NOTE_OFFSET + s];
       const defNote  = S.pattern.raw[trackBase + DEFAULT_NOTE_OFFSET];
@@ -1146,7 +1146,7 @@ var setStatus = AR.setStatus;
 
       // Helper: write a byte to S.pattern.raw and refresh
       const writeByte = (off, val) => {
-        S.pattern.raw[off] = val;
+        S.pattern.raw[off] = Math.max(0, Math.min(255, val | 0));
         refreshAfterEdit();
       };
 
@@ -1229,6 +1229,7 @@ var setStatus = AR.setStatus;
         min: -23, max: 23, rawVal: microSigned, displayFn: utimeDispFn, snap: 0,
         onChange: (v) => {
           // Encode signed value into 6-bit field, preserve upper 2 bits
+          v = Math.max(-23, Math.min(23, v | 0));
           const enc = v < 0 ? (v + 64) & UTIME_VALUE_MASK : v & UTIME_VALUE_MASK;
           S.pattern.raw[trackBase + MICRO_TIMING_OFFSET + s] = (microRaw & UTIME_UPPER_MASK) | enc;
           refreshAfterEdit();
@@ -1264,7 +1265,7 @@ var setStatus = AR.setStatus;
 
     // RETRIG section: RATE, LEN, VEL — always shown; highlighted when retrig is active
     function buildRetrigSection(t, s, flags) {
-      const trackBase = 4 + t * TRACK_V5_SZ;
+      const trackBase = 4 + t * AR_TRACK_V5_SZ;
       const isRetrig  = (flags & AR_TRIG_RETRIG) !== 0;
 
       const rateRaw   = S.pattern.raw[trackBase + RETRIG_RATE_OFFSET   + s] & RETRIG_RATE_MASK;
@@ -1286,6 +1287,7 @@ var setStatus = AR.setStatus;
         min: 0, max: 16, rawVal: rateRaw,
         displayFn: (v) => RETRIG_RATE_LABELS[v] ?? String(v),
         onChange: (v) => {
+          v = Math.max(0, Math.min(16, v | 0));
           S.pattern.raw[rateOff] = (rateFull & RETRIG_RATE_FLAGS) | (v & RETRIG_RATE_MASK);
           refreshAfterEdit();
         },
@@ -1298,6 +1300,7 @@ var setStatus = AR.setStatus;
         min: 0, max: 127, rawVal: lenRaw,
         displayFn: (v) => noteLenDisplay(noteLenVal(v)),
         onChange: (v) => {
+          v = Math.max(0, Math.min(127, v | 0));
           S.pattern.raw[lenOff2] = (lenFull & RETRIG_LEN_FLAG) | (v & RETRIG_LEN_VALUE_MASK);
           refreshAfterEdit();
         },
@@ -1309,6 +1312,7 @@ var setStatus = AR.setStatus;
         min: -128, max: 127, rawVal: velSigned, snap: 0, snapR: 5,
         displayFn: (v) => (v >= 0 ? '+' : '') + v,
         onChange: (v) => {
+          v = Math.max(-128, Math.min(127, v | 0));
           S.pattern.raw[velOff] = v < 0 ? v + 256 : v;
           refreshAfterEdit();
         },
@@ -1323,6 +1327,8 @@ var setStatus = AR.setStatus;
     // to prevent orphaned fine slots (which would corrupt the coarse+fine pairing).
     function writePlock(t, pt, s, val) {
       if (!S.pattern.raw) return;
+      // Clamp: 0-127 for parameter values, or PLOCK_NO_VALUE (0xFF) to clear
+      if (val !== PLOCK_NO_VALUE) val = Math.max(0, Math.min(127, val | 0));
       const end = PLOCK_SEQS_BASE + NUM_PLOCK_SEQS * PLOCK_SEQ_SZ;
       if (S.pattern.raw.length < end) return;
 
@@ -1402,6 +1408,7 @@ var setStatus = AR.setStatus;
     // own behaviour when plock slots are exhausted.
     function writePlockFine(t, pt, s, fineVal) {
       if (!S.pattern.raw) return;
+      fineVal = Math.max(0, Math.min(127, fineVal | 0));
       // Find coarse slot
       for (let si = 0; si < NUM_PLOCK_SEQS; si++) {
         const base = PLOCK_SEQS_BASE + si * PLOCK_SEQ_SZ;

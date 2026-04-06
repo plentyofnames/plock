@@ -16,8 +16,12 @@
     <button id="btn-refresh" disabled>Request Pattern</button>
     <button id="btn-load-syx">Load .syx</button>
     <button id="btn-save-syx" disabled>Save .syx</button>
+    <button id="btn-clear" disabled>Clear Pattern</button>
     <button id="btn-send" disabled>Send to AR</button>
     <input type="file" id="syx-file" accept=".syx" hidden>
+    <span class="ctrl-sep"></span>
+    <button id="btn-play" disabled>▶ Play</button>
+    <button id="btn-fill" class="fill-btn" disabled>FILL</button>
     <div id="status">Not connected</div>
   </div>
 
@@ -63,14 +67,16 @@
   <button id="btn-log" class="log-toggle">Show Log</button>
   <div id="log-panel" class="log-panel" hidden></div>
 
-  <script src="ar-state.js"></script>
-  <script src="ar-constants.js"></script>
-  <script src="ar-sysex.js"></script>
-  <script src="ar-editor.js"></script>
-  <script src="ar-midi.js"></script>
+  <script src="ar-state.js?v=12"></script>
+  <script src="ar-constants.js?v=12"></script>
+  <script src="ar-sysex.js?v=12"></script>
+  <script src="ar-editor.js?v=12"></script>
+  <script src="ar-midi.js?v=12"></script>
+  <script src="ar-audio.js?v=12"></script>
   <script>
     AR.initUI();
     AR.midiInit();
+    if (!AR.state.pattern.raw) AR.newPattern();
   </script>
 </body>
 </html>

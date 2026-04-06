@@ -151,9 +151,10 @@ var setStatus = AR.setStatus;
       const sndLock  = raw[trackBase + SOUND_LOCK_OFFSET + stepIdx];
       const hasSoundLock = !beyond && sndLock !== SOUND_LOCK_NONE;
 
-      const SYN_SMP_EN = AR_TRIG_SYN_PL_EN | AR_TRIG_SMP_PL_EN;
+      // A trig with neither SYN_PL_SW nor SMP_PL_SW set won't retrigger
+      // voices → effectively a lock trig (silent).  This covers both the
+      // classic case (PL_EN bits set) and the "defaults cleared" case.
       const isLockTrig = !beyond && isOn &&
-        (flags & SYN_SMP_EN) === SYN_SMP_EN &&
         (flags & (AR_TRIG_SYN_PL_SW | AR_TRIG_SMP_PL_SW)) === 0;
 
       const cell = document.createElement('div');
@@ -654,9 +655,7 @@ var setStatus = AR.setStatus;
       const spMasterSteps = (spMasterLenRaw === 0 || spMasterLenRaw === 1) ? 64 : Math.min(spMasterLenRaw, 64);
       const numSteps  = spScaleMode ? S.pattern.raw[trackBase + NUM_STEPS_OFFSET] : spMasterSteps;
       const beyond    = s >= numSteps;
-      const SYN_SMP_EN = AR_TRIG_SYN_PL_EN | AR_TRIG_SMP_PL_EN;
       const isLockTrig = !beyond && isOn &&
-        (flags & SYN_SMP_EN) === SYN_SMP_EN &&
         (flags & (AR_TRIG_SYN_PL_SW | AR_TRIG_SMP_PL_SW)) === 0;
       const trigType = beyond ? 'BEYOND' : isLockTrig ? 'PARAMETER LOCK' : isOn ? 'TRIG' : 'EMPTY';
 
@@ -1018,6 +1017,180 @@ var setStatus = AR.setStatus;
       U.metaEl.appendChild(buildMetaLine1(raw));
       U.metaEl.appendChild(buildMetaLine2(raw));
     }
+
+    // Build a fresh 13101-byte pattern buffer with sensible defaults so the
+    // editor has something to show before the user loads or requests a pattern.
+    // Layout: 4 header bytes + 13 tracks × 641 + plock slots + meta.
+    AR.newPattern = function() {
+      const PATTERN_SIZE = 13101;
+      const raw = new Uint8Array(PATTERN_SIZE);  // zero-initialised
+
+      for (let t = 0; t < AR_NUM_TRACKS; t++) {
+        const base = 4 + t * AR_TRACK_V5_SZ;
+        // Per-step arrays → 0xFF sentinel for "no lock / no condition"
+        for (let s = 0; s < AR_NUM_STEPS; s++) {
+          raw[base + NOTE_OFFSET          + s] = NOTE_CONDITION_BIT | NOTE_UNLOCKED;
+          raw[base + VELOCITY_OFFSET      + s] = PLOCK_NO_VALUE;
+          raw[base + NOTE_LEN_OFFSET      + s] = PLOCK_NO_VALUE;
+          raw[base + RETRIG_LENGTH_OFFSET + s] = PLOCK_NO_VALUE;
+          raw[base + RETRIG_RATE_OFFSET   + s] = PLOCK_NO_VALUE;
+          raw[base + RETRIG_VELO_OFFSET   + s] = PLOCK_NO_VALUE;
+          raw[base + SOUND_LOCK_OFFSET    + s] = SOUND_LOCK_NONE;
+        }
+        // Track defaults: C3 / velocity 100 / 1/16 note / no flags / 16 steps / 1× / 100%
+        raw[base + DEFAULT_NOTE_OFFSET]        = 60;
+        raw[base + DEFAULT_VELOCITY_OFFSET]    = 100;
+        raw[base + DEFAULT_NOTE_LEN_OFFSET]    = 12;
+        // Default flags: ENABLE | SYN_PL_SW | SMP_PL_SW so new trigs make sound.
+        // Without SYN/SMP retrigger the hit would be silent (lock-trig-ish).
+        const defFlags = AR_TRIG_ENABLE | AR_TRIG_SYN_PL_SW | AR_TRIG_SMP_PL_SW;
+        raw[base + DEFAULT_TRIG_FLAGS_OFFSET]     = (defFlags >> 8) & 0xFF;
+        raw[base + DEFAULT_TRIG_FLAGS_OFFSET + 1] =  defFlags       & 0xFF;
+        raw[base + NUM_STEPS_OFFSET]           = 16;
+        raw[base + TRACK_SPEED_OFFSET]         = 2;        // 1× speed
+        raw[base + TRIG_PROBABILITY_OFFSET]    = 100;
+
+        // Pre-seed the SWING flag on even-numbered steps (2, 4, 6 … in the
+        // 1-based display = odd 0-indexed positions).  This way any trig
+        // placed on one of those steps will participate in swing without
+        // the user having to toggle SWG manually.
+        const trigBits = raw.subarray(base + TRIG_BITS_OFFSET, base + 112);
+        for (let s = 1; s < AR_NUM_STEPS; s += 2) {
+          setTrigFlags(trigBits, s, AR_TRIG_SWING);
+        }
+      }
+      // Plock slots: all unused
+      for (let si = 0; si < NUM_PLOCK_SEQS; si++) {
+        const b = PLOCK_SEQS_BASE + si * PLOCK_SEQ_SZ;
+        raw[b]     = PLOCK_TYPE_UNUSED;
+        raw[b + 1] = PLOCK_TYPE_UNUSED;
+        for (let s = 0; s < AR_NUM_STEPS; s++) raw[b + 2 + s] = PLOCK_NO_VALUE;
+      }
+      // Pattern meta
+      writeU16BE(raw, MASTER_LENGTH_OFFSET, 16);   // 16 steps = 1 bar
+      writeU16BE(raw, MASTER_CHG_OFFSET,     1);
+      raw[KIT_NUMBER_OFFSET]   = 0;
+      raw[SWING_AMOUNT_OFFSET] = 0;
+      raw[SCALE_MODE_OFFSET]   = 0;                // normal scale mode
+      raw[MASTER_SPEED_OFFSET] = 2;                // 1×
+      writeU16BE(raw, BPM_MSB_OFFSET, 120 * 120);  // BPM 120.0
+
+      const meta = {
+        devId: 0, dumpId: AR_SYSEX_DUMPX_ID_PATTERN,
+        verHi: 0, verLo: 0, objNr: 0,
+      };
+      AR.loadPattern(raw, meta, 'New');
+
+      // Build a default kit so parameter displays show sensible values
+      // instead of dashes.  Uses the same layout as generate_test_syx.py.
+      AR.loadKit(buildDefaultKit(), null);
+
+      parsePlocks(raw);
+      renderMeta();
+      renderGrid(raw, 0);
+      if (U.btnSaveSyx) U.btnSaveSyx.disabled = false;
+      if (U.btnClear)   U.btnClear.disabled   = false;
+    };
+
+    // Default machine id per track (indices into MACHINES enum, matches
+    // generate_test_syx.py defaults).  Track 12 (FX) has no machine.
+    const DEFAULT_TRACK_MACHINES = [
+      0,   // BD → BD_HARD
+      3,   // SD → SD_CLASSIC
+      5,   // RS → RS_CLASSIC
+      6,   // CP → CP_CLASSIC
+      7,   // BT → BT_CLASSIC
+      8,   // LT → XT_CLASSIC
+      8,   // MT → XT_CLASSIC
+      8,   // HT → XT_CLASSIC
+      17,  // CH → CH_METALLIC
+      18,  // OH → OH_METALLIC
+      25,  // CY → CY_RIDE
+      12,  // CB → CB_CLASSIC
+    ];
+
+    // Sensible per-section param defaults for a fresh kit (hi-bytes of s_u16_t).
+    // These mirror the values used by generate_test_syx.py for a plausible
+    // starting point (filter wide open, amp decay mid, vol 100, etc).
+    const DEF_SYNTH  = [100, 64, 80, 64, 64, 64, 64, 64];  // SYNTH_PARAM_1..8 @0x1C
+    const DEF_SAMPLE = [ 64, 64,  0,  0,  0,127,  0,100];  // SAMPLE_TUNE..VOLUME @0x2C
+    const DEF_FILT   = [  0, 64, 64, 32, 64,  0,  0, 64];  // FLT_ATTACK..ENV @0x3C
+    const DEF_AMP    = [  0,  0, 64,  0,  0,  0, 64,100];  // AMP_ATTACK..VOLUME @0x4C
+    const DEF_LFO    = [ 32,  1,  0,  0,  0,  0,  0, 64];  // LFO_SPEED..DEPTH @0x5E
+
+    function buildDefaultKit() {
+      const AR_KIT_V5_SZ = 0x0A32;
+      const kit = new Uint8Array(AR_KIT_V5_SZ);
+
+      for (let t = 0; t < 12; t++) {
+        const base = KIT_TRACKS_BASE + t * AR_SOUND_V5_SZ;
+        kit[base + MACHINE_TYPE_OFFSET] = DEFAULT_TRACK_MACHINES[t];
+        for (let i = 0; i < 8; i++) {
+          kit[base + 0x1C + i * 2] = DEF_SYNTH[i];
+          kit[base + 0x2C + i * 2] = DEF_SAMPLE[i];
+          kit[base + 0x3C + i * 2] = DEF_FILT[i];
+          kit[base + 0x4C + i * 2] = DEF_AMP[i];
+          kit[base + 0x5E + i * 2] = DEF_LFO[i];
+        }
+      }
+
+      // FX track defaults — delay, reverb, dist, comp, fx LFO.
+      // Each kitOff = FX_KIT_BASE + plockType*2 (hi byte).
+      const FX_KIT_BASE = 0x07CA;
+      // Delay: time=64, pp=0, wid=64, fb=32, hpf=0, lpf=127, rev=0, vol=100
+      const fxDelay = [64, 0, 64, 32, 0, 127, 0, 100];
+      for (let i = 0; i < 8; i++) kit[FX_KIT_BASE + i * 2] = fxDelay[i];
+      // Dist pre-delay and pre-reverb routing + amount + symmetry
+      kit[FX_KIT_BASE + 8 * 2]  = 0;    // DOV
+      kit[FX_KIT_BASE + 9 * 2]  = 0;    // DEL routing (PRE)
+      // Reverb: pre=32, dec=80, frq=64, gai=64, hpf=0, lpf=127, vol=80
+      const fxRev = [32, 80, 64, 64, 0, 127, 80];
+      for (let i = 0; i < 7; i++) kit[FX_KIT_BASE + (10 + i) * 2] = fxRev[i];
+      kit[FX_KIT_BASE + 17 * 2] = 0;    // REV routing (PRE)
+      kit[FX_KIT_BASE + 18 * 2] = 0;    // DIST AMT
+      kit[FX_KIT_BASE + 19 * 2] = 64;   // DIST SYM (center)
+      // Compressor: thr=96, atk=3, rel=4, rat=2, seq=0, mup=0, mix=64, vol=100
+      const fxComp = [96, 3, 4, 2, 0, 0, 64, 100];
+      for (let i = 0; i < 8; i++) kit[FX_KIT_BASE + (21 + i) * 2] = fxComp[i];
+      // FX LFO: spd=64, mul=1, fad=64, dst=37(NONE), wav=0, phs=0, mod=0, dep=64
+      const fxLfo = [64, 1, 64, 37, 0, 0, 0, 64];
+      for (let i = 0; i < 8; i++) kit[FX_KIT_BASE + (29 + i) * 2] = fxLfo[i];
+
+      return kit;
+    }
+
+    // Clear all trigs and plocks from the pattern.  Preserves per-track
+    // defaults (note/velocity/length/flags/speed/probability/num_steps) and
+    // pattern meta (BPM, swing, scale, master length, kit).
+    AR.clearPattern = function() {
+      if (!S.pattern.raw) return;
+      const raw = S.pattern.raw;
+      for (let t = 0; t < AR_NUM_TRACKS; t++) {
+        const base = 4 + t * AR_TRACK_V5_SZ;
+        // Trig bits: 14 bits × 64 steps = 112 bytes
+        for (let i = 0; i < 112; i++) raw[base + TRIG_BITS_OFFSET + i] = 0;
+        // Per-step arrays — 0xFF = unlocked / no condition / no value
+        for (let s = 0; s < AR_NUM_STEPS; s++) {
+          raw[base + NOTE_OFFSET          + s] = NOTE_CONDITION_BIT | NOTE_UNLOCKED;  // 0xFF
+          raw[base + VELOCITY_OFFSET      + s] = PLOCK_NO_VALUE;
+          raw[base + NOTE_LEN_OFFSET      + s] = PLOCK_NO_VALUE;
+          raw[base + MICRO_TIMING_OFFSET  + s] = 0;
+          raw[base + RETRIG_LENGTH_OFFSET + s] = PLOCK_NO_VALUE;
+          raw[base + RETRIG_RATE_OFFSET   + s] = PLOCK_NO_VALUE;
+          raw[base + RETRIG_VELO_OFFSET   + s] = PLOCK_NO_VALUE;
+          raw[base + SOUND_LOCK_OFFSET    + s] = SOUND_LOCK_NONE;
+        }
+      }
+      // Wipe all plock sequence slots
+      for (let si = 0; si < NUM_PLOCK_SEQS; si++) {
+        const b = PLOCK_SEQS_BASE + si * PLOCK_SEQ_SZ;
+        raw[b]     = PLOCK_TYPE_UNUSED;
+        raw[b + 1] = PLOCK_TYPE_UNUSED;
+        for (let s = 0; s < AR_NUM_STEPS; s++) raw[b + 2 + s] = PLOCK_NO_VALUE;
+      }
+      refreshAfterEdit();
+      setStatus('Pattern cleared');
+    };
 
     function refreshAfterEdit() {
       const had = S.ui.openPanel ? { t: S.ui.openPanel.t, s: S.ui.openPanel.s } : null;

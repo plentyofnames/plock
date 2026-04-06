@@ -62,6 +62,7 @@ AR.initUI = function() {
   AR.ui.btnRefresh  = document.getElementById('btn-refresh');
   AR.ui.btnLoadSyx  = document.getElementById('btn-load-syx');
   AR.ui.btnSaveSyx  = document.getElementById('btn-save-syx');
+  AR.ui.btnClear    = document.getElementById('btn-clear');
   AR.ui.btnSend     = document.getElementById('btn-send');
   AR.ui.syxFileIn   = document.getElementById('syx-file');
   AR.ui.btnPage0    = document.getElementById('btn-page0');

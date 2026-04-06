@@ -11,7 +11,7 @@ async function connectMidi() {
   try {
     S.midi.access = await navigator.requestMIDIAccess({ sysex: true });
   } catch (e) {
-    setStatus('MIDI access denied: ' + e.message, 'err');
+    setStatus('MIDI access denied', 'err');
     return;
   }
   S.midi.access.onstatechange = () => {

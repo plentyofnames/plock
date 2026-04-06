@@ -107,8 +107,9 @@ AR._makeLogEntry = function(entry) {
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────
 AR.setStatus = function(msg, cls) {
-  // Update inline status bar
+  // Update inline status bar (truncated via CSS; full text on hover)
   AR.ui.statusEl.textContent = msg;
+  AR.ui.statusEl.title       = msg;
   AR.ui.statusEl.className   = cls || '';
 
   // Append to log history

@@ -90,7 +90,12 @@
     const raw = AR.state.pattern.raw;
     if (!raw) return null;
     const base = 4 + t * AR_TRACK_V5_SZ;
-    return {
+    // Volatile fields (numSteps, speedByte, defNote, defVelo, defFlags,
+    // probability) must be re-read on every access so edits made during
+    // playback (e.g. changing a track's length in advanced mode) take
+    // effect on the next scheduler tick.  Use getters that look up the
+    // current value from AR.state.pattern.raw every time.
+    const trk = {
       base,
       trigBits:     raw.subarray(base + TRIG_BITS_OFFSET, base + 112),
       notes:        base + NOTE_OFFSET,
@@ -100,13 +105,63 @@
       retrigLens:   base + RETRIG_LENGTH_OFFSET,
       retrigRates:  base + RETRIG_RATE_OFFSET,
       retrigVelos:  base + RETRIG_VELO_OFFSET,
-      defNote:      raw[base + DEFAULT_NOTE_OFFSET],
-      defVelo:      raw[base + DEFAULT_VELOCITY_OFFSET],
-      defFlags:     (raw[base + DEFAULT_TRIG_FLAGS_OFFSET] << 8) | raw[base + DEFAULT_TRIG_FLAGS_OFFSET + 1],
-      numSteps:     raw[base + NUM_STEPS_OFFSET] || 16,
-      speedByte:    raw[base + TRACK_SPEED_OFFSET],
-      probability:  raw[base + TRIG_PROBABILITY_OFFSET],
+      soundLocks:   base + SOUND_LOCK_OFFSET,
     };
+    Object.defineProperties(trk, {
+      defNote:     { get: () => AR.state.pattern.raw[base + DEFAULT_NOTE_OFFSET] },
+      defVelo:     { get: () => AR.state.pattern.raw[base + DEFAULT_VELOCITY_OFFSET] },
+      defFlags:    { get: () => {
+        const r = AR.state.pattern.raw;
+        return (r[base + DEFAULT_TRIG_FLAGS_OFFSET] << 8) | r[base + DEFAULT_TRIG_FLAGS_OFFSET + 1];
+      }},
+      numSteps:    { get: () => AR.state.pattern.raw[base + NUM_STEPS_OFFSET] || 16 },
+      speedByte:   { get: () => AR.state.pattern.raw[base + TRACK_SPEED_OFFSET] },
+      probability: { get: () => AR.state.pattern.raw[base + TRIG_PROBABILITY_OFFSET] },
+    });
+    return trk;
+  }
+
+  // ── Kit / sound pool helpers ───────────────────────────────────────────
+  // Machine type and per-voice params are stored in the kit's ar_sound_t[]
+  // (tracks[12] @ 0x002E).  Sound pool entries are standalone ar_sound_t
+  // buffers with the same layout.  Hi byte of each s_u16_t carries 0..127.
+  const SND_SZ = 162;  // sizeof(ar_sound_t) v5
+
+  function kitSoundBase(t) {
+    return 0x002E + t * SND_SZ;
+  }
+
+  // Returns the ar_sound_t byte array for track `t` at step `s`, honoring
+  // sound locks.  Falls back to the kit's track sound.  `out.view` is a
+  // Uint8Array subarray, `out.baseOff` is 0 (for pool) or kit offset.
+  function getStepSound(t, s) {
+    const raw = AR.state.pattern.raw;
+    const lock = raw[4 + t * AR_TRACK_V5_SZ + SOUND_LOCK_OFFSET + s];
+    if (lock !== SOUND_LOCK_NONE && AR.state.pattern.soundPool &&
+        AR.state.pattern.soundPool.has(lock)) {
+      const snd = AR.state.pattern.soundPool.get(lock);
+      return { buf: snd, base: 0 };
+    }
+    const kit = AR.state.pattern.kit;
+    if (!kit) return null;
+    return { buf: kit, base: kitSoundBase(t) };
+  }
+
+  function getSoundMachine(snd) {
+    if (!snd) return null;
+    return snd.buf[snd.base + MACHINE_TYPE_OFFSET];
+  }
+
+  // Amp params live at AMP_VOLUME=0x5A, AMP_PAN=0x58 (hi byte of u16).
+  function getSoundVolume(snd) {
+    if (!snd) return 1;
+    return snd.buf[snd.base + SND_AMP_VOLUME] / 127;
+  }
+  function getSoundPan(snd) {
+    if (!snd) return 0;
+    // Pan is bipolar centered at 64: 0 → hard left, 64 → center, 127 → hard right
+    const v = snd.buf[snd.base + SND_AMP_PAN];
+    return (v - 64) / 64;
   }
 
   function getPatternMeta() {
@@ -114,12 +169,18 @@
     if (!raw) return null;
     // BPM is stored as u16be × 120 (see editor meta line: bpmRaw / 120)
     const bpmRaw = (raw[BPM_MSB_OFFSET] << 8) | raw[BPM_LSB_OFFSET];
+    // master_length @0x3321 (u16be).  In normal mode this is the shared track
+    // length.  In advanced mode it's the master-restart length: all tracks
+    // snap back to step 0 at this boundary regardless of their own length.
+    // Special values: 0 → 64 (legacy/default), 1 → infinite (no master restart).
+    const rawMasterLen = (raw[MASTER_LENGTH_OFFSET] << 8) | raw[MASTER_LENGTH_OFFSET + 1];
     return {
       bpm:          bpmRaw ? bpmRaw / 120 : 120,
       swingAmount:  raw[SWING_AMOUNT_OFFSET],   // 0..30; actual % = 50 + this
       scaleMode:    raw[SCALE_MODE_OFFSET],     // 0 normal, 1 advanced
       masterSpeed:  raw[MASTER_SPEED_OFFSET] & SPEED_VALUE_MASK,
-      masterLen:    ((raw[MASTER_LENGTH_OFFSET] << 8) | raw[MASTER_LENGTH_OFFSET + 1]) || 64,
+      masterLen:    rawMasterLen || 64,         // used by trackNumSteps (normal mode)
+      masterLenRaw: rawMasterLen,               // raw value (1 = infinite in adv mode)
     };
   }
 
@@ -430,20 +491,126 @@
     o2.start(when); o2.stop(when + 0.3);
   }
 
-  function playVoice(t, when, opts) {
-    switch (t) {
-      case 0:  playBD(when, opts); break;
-      case 1:  playSD(when, opts); break;
-      case 2:  playRS(when, opts); break;
-      case 3:  playCP(when, opts); break;
-      case 4:  playTom(when, opts,  65); break;  // BT (bass tom — lowest)
-      case 5:  playTom(when, opts,  90); break;  // LT
-      case 6:  playTom(when, opts, 120); break;  // MT
-      case 7:  playTom(when, opts, 155); break;  // HT
-      case 8:  playHat(when, opts, 0.04, 7000); break;  // CH
-      case 9:  playHat(when, opts, 0.25, 6000); break;  // OH
-      case 10: playCY(when, opts); break;
-      case 11: playCB(when, opts); break;
+  // Short tonal synth blip — stand-in for SY_DUAL_VCO / SY_CHIP / SY_RAW
+  function playSynth(when, opts) {
+    const ctx = E.ctx;
+    const pr = opts.pitchRatio || 1;
+    const o1 = ctx.createOscillator();
+    o1.type = 'sawtooth';
+    o1.frequency.value = 220 * pr;
+    const o2 = ctx.createOscillator();
+    o2.type = 'square';
+    o2.frequency.value = 220 * pr * 1.005;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(3000, when);
+    lp.frequency.exponentialRampToValueAtTime(400, when + 0.2);
+    lp.Q.value = 4;
+    const g = envGain(ctx, when, opts.gain * 0.5, 0.003, 0.25);
+    o1.connect(lp); o2.connect(lp);
+    lp.connect(g).connect(opts.dest);
+    o1.start(when); o1.stop(when + 0.35);
+    o2.start(when); o2.stop(when + 0.35);
+  }
+
+  // Short noise burst — UT_NOISE
+  function playUtNoise(when, opts) {
+    const ctx = E.ctx;
+    const n = noiseSrc(ctx, when, 0.1);
+    const g = envGain(ctx, when, opts.gain * 0.6, 0.002, 0.08);
+    n.connect(g).connect(opts.dest);
+  }
+
+  // Short impulse click — UT_IMPULSE
+  function playUtImpulse(when, opts) {
+    const ctx = E.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = 1200 * (opts.pitchRatio || 1);
+    const g = envAD(ctx, when, opts.gain * 0.6, 0.008);
+    o.connect(g).connect(opts.dest);
+    o.start(when); o.stop(when + 0.02);
+  }
+
+  // Dispatch by machine id (from ar_sound_t MACHINE_TYPE).  Machine ids come
+  // from generate_test_syx.py's MACHINES enum.  Track index is a hint used
+  // only for the XT_CLASSIC tom variant so LT/MT/HT sound different.
+  function playVoice(trackIdx, machineId, when, opts) {
+    switch (machineId) {
+      // ── Bass drums ──
+      case 0:   // BD_HARD
+      case 1:   // BD_CLASSIC
+      case 13:  // BD_FM
+      case 21:  // BD_PLASTIC
+      case 22:  // BD_SILKY
+      case 26:  // BD_SHARP
+      case 30:  // BD_ACOUSTIC
+        playBD(when, opts); return;
+
+      // ── Snares ──
+      case 2:   // SD_HARD
+      case 3:   // SD_CLASSIC
+      case 14:  // SD_FM
+      case 23:  // SD_NATURAL
+      case 31:  // SD_ACOUSTIC
+        playSD(when, opts); return;
+
+      // ── Rimshot ──
+      case 4:   // RS_HARD
+      case 5:   // RS_CLASSIC
+        playRS(when, opts); return;
+
+      // ── Clap ──
+      case 6:   // CP_CLASSIC
+        playCP(when, opts); return;
+
+      // ── Toms ──
+      case 7:   // BT_CLASSIC (bass tom — lowest)
+        playTom(when, opts, 65); return;
+      case 8: { // XT_CLASSIC — tuning depends on which tom track hosts it
+        const toms = [90, 90, 90, 90, 90, 90, 120, 155];  // BT..HT base Hz
+        playTom(when, opts, toms[trackIdx] || 110); return;
+      }
+
+      // ── Closed hat ──
+      case 9:   // CH_CLASSIC
+      case 17:  // CH_METALLIC
+      case 24:  // HH_BASIC
+      case 33:  // HH_LAB
+        playHat(when, opts, 0.04, 7000); return;
+
+      // ── Open hat ──
+      case 10:  // OH_CLASSIC
+      case 18:  // OH_METALLIC
+        playHat(when, opts, 0.25, 6000); return;
+
+      // ── Cymbal ──
+      case 11:  // CY_CLASSIC
+      case 19:  // CY_METALLIC
+      case 25:  // CY_RIDE
+        playCY(when, opts); return;
+
+      // ── Cowbell ──
+      case 12:  // CB_CLASSIC
+      case 20:  // CB_METALLIC
+        playCB(when, opts); return;
+
+      // ── Utility voices ──
+      case 15:  // UT_NOISE
+        playUtNoise(when, opts); return;
+      case 16:  // UT_IMPULSE
+        playUtImpulse(when, opts); return;
+
+      // ── Synths ──
+      case 28:  // SY_DUAL_VCO
+      case 29:  // SY_CHIP
+      case 32:  // SY_RAW
+        playSynth(when, opts); return;
+
+      // ── Disabled / unknown: silent ──
+      case 27:  // DISABLE
+      default:
+        return;
     }
   }
 
@@ -476,6 +643,7 @@
         nSteps:     trackNumSteps(trk, meta),
         stepIdx:    0,
         nextTick:   0,        // absolute tick of current step boundary
+        lastMasterCycle: -1,  // last master-cycle index this track was snapped into
       });
     }
     E.cycleCount     = new Int32Array(12);
@@ -544,11 +712,23 @@
     // Tonal voices transpose from default note
     const pitchRatio = Math.pow(2, (note - trk.defNote) / 12);
 
-    const opts = {
-      gain,
-      pitchRatio,
-      dest: E.master,
-    };
+    // Resolve the sound for this step (sound lock overrides track machine),
+    // then pull machine id + volume + pan from it.
+    const snd = getStepSound(t, s);
+    const machineId = getSoundMachine(snd);
+    if (machineId === null || machineId === undefined) return;
+    const sndVol = getSoundVolume(snd);
+    const sndPan = getSoundPan(snd);
+
+    // Build a per-hit bus: voice → gain (kit volume × velocity) → panner → master
+    function makeBus(atWhen) {
+      const g = E.ctx.createGain();
+      g.gain.value = sndVol;
+      const p = E.ctx.createStereoPanner();
+      p.pan.value = sndPan;
+      g.connect(p).connect(E.master);
+      return g;
+    }
 
     // Retrig
     const retrigOn = (flags & AR_TRIG_RETRIG) !== 0;
@@ -581,10 +761,13 @@
         const subWhen = Math.max(subRaw, E.ctx.currentTime + 0.002);
         const velScale = Math.max(0, Math.min(1,
           1 + (i / Math.max(1, numHits - 1)) * (vOffSigned / 127)));
-        playVoice(t, subWhen, { ...opts, gain: gain * velScale });
+        const bus = makeBus(subWhen);
+        playVoice(t, machineId, subWhen,
+          { gain: gain * velScale, pitchRatio, dest: bus });
       }
     } else {
-      playVoice(t, when, opts);
+      const bus = makeBus(when);
+      playVoice(t, machineId, when, { gain, pitchRatio, dest: bus });
     }
   }
 
@@ -597,6 +780,14 @@
     // Convert horizon wall time → tick horizon
     const horizonTick = (horizon - E.startTime) / E.tickDur;
 
+    // Master-restart boundary (advanced mode only, masterLenRaw ≥ 2).
+    // masterLenRaw == 1 means "infinite" — no master restart.
+    // Unit: 1/16 step @1×, so masterLoopTicks = masterLenRaw * TICKS_PER_STEP_1X.
+    const masterLoopTicks = (meta.scaleMode && meta.masterLenRaw >= 2)
+      ? meta.masterLenRaw * TICKS_PER_STEP_1X
+      : 0;
+    E.masterLoopTicks = masterLoopTicks;   // cached for playhead
+
     // Advance each track
     for (let t = 0; t < 12; t++) {
       const ts = TS[t];
@@ -605,6 +796,16 @@
       ts.nSteps  = trackNumSteps(ts.trk, meta);
 
       while (ts.nextTick < horizonTick) {
+        // Master restart: snap nextTick forward to the master boundary and
+        // reset stepIdx to 0 whenever this track enters a new master cycle.
+        if (masterLoopTicks) {
+          const cycleIdx = Math.floor(ts.nextTick / masterLoopTicks);
+          if (cycleIdx > ts.lastMasterCycle) {
+            ts.nextTick = cycleIdx * masterLoopTicks;
+            ts.stepIdx = 0;
+            ts.lastMasterCycle = cycleIdx;
+          }
+        }
         scheduleStep(ts, t, ts.nextTick);
         ts.nextTick += ts.stepDur;
         ts.stepIdx++;
@@ -620,39 +821,64 @@
   }
 
   // ─── Playhead highlight (visual feedback in grid) ───────────────────────
+  // In advanced mode each track has its own length / speed, so the playhead
+  // must be computed per-track.  We store the last highlighted step per
+  // track so we only touch the DOM when it actually changes.
   function updatePlayhead() {
     if (!E.playing) return;
     const ctx = E.ctx;
     if (ctx) {
-      // Track 0 step cursor based on BD track timing.
-      // Compensate for audio output latency: what we HEAR at this instant
-      // corresponds to ctx.currentTime - outputLatency.
-      const ts0 = TS[0];
-      if (ts0) {
-        const lat = (ctx.outputLatency || ctx.baseLatency || 0);
-        const nowTick = (ctx.currentTime - lat - E.startTime) / E.tickDur;
-        const posInLoop = ((nowTick % (ts0.stepDur * ts0.nSteps)) + ts0.stepDur * ts0.nSteps) % (ts0.stepDur * ts0.nSteps);
-        const curStep = Math.floor(posInLoop / ts0.stepDur);
-        if (curStep !== E.highlightStep) {
-          E.highlightStep = curStep;
-          highlightGridStep(curStep);
+      const lat = (ctx.outputLatency || ctx.baseLatency || 0);
+      const nowTick = (ctx.currentTime - lat - E.startTime) / E.tickDur;
+      // Skip the playhead entirely during pre-roll (startTime is ~50 ms in
+      // the future and output-latency compensation pushes nowTick further
+      // negative).  Painting step 0 here would flash once and then sit idle
+      // until audio actually starts, which looks worse than no playhead.
+      if (nowTick < 0) { E.rafId = requestAnimationFrame(updatePlayhead); return; }
+      if (!E.highlightSteps) E.highlightSteps = new Int32Array(12).fill(-1);
+      let anyChanged = false;
+      const masterLoopTicks = E.masterLoopTicks || 0;
+      for (let t = 0; t < 12; t++) {
+        const ts = TS[t];
+        if (!ts || !ts.nSteps || !ts.stepDur) continue;
+        let curStep;
+        if (masterLoopTicks > 0) {
+          // Master restart: tracks snap to step 0 at each master boundary, so
+          // position within the master cycle drives the playhead.  If the
+          // track loop is shorter than the master cycle, the track repeats
+          // within it — hence the second modulo.
+          const inMaster = ((nowTick % masterLoopTicks) + masterLoopTicks) % masterLoopTicks;
+          const stepInMaster = Math.floor(inMaster / ts.stepDur);
+          curStep = stepInMaster % ts.nSteps;
+        } else {
+          const loopTicks = ts.stepDur * ts.nSteps;
+          const posInLoop = ((nowTick % loopTicks) + loopTicks) % loopTicks;
+          curStep = Math.floor(posInLoop / ts.stepDur);
+        }
+        if (curStep !== E.highlightSteps[t]) {
+          E.highlightSteps[t] = curStep;
+          anyChanged = true;
         }
       }
+      if (anyChanged) highlightGridSteps(E.highlightSteps);
     }
     E.rafId = requestAnimationFrame(updatePlayhead);
   }
 
-  function highlightGridStep(step) {
+  function highlightGridSteps(perTrack) {
     const grid = document.getElementById('grid');
     if (!grid) return;
     const prev = grid.querySelectorAll('.step.playhead');
     prev.forEach(el => el.classList.remove('playhead'));
-    // Step index in 0..63; visible only if on current page
     const page = AR.state.ui.stepPage;
-    const localStep = step - page * 32;
-    if (localStep < 0 || localStep >= 32) return;
     const rows = grid.querySelectorAll('.track-row');
-    rows.forEach(row => {
+    rows.forEach((row) => {
+      const t = parseInt(row.dataset.track, 10);
+      if (!Number.isFinite(t) || t < 0 || t >= perTrack.length) return;
+      const step = perTrack[t];
+      if (step < 0) return;
+      const localStep = step - page * 32;
+      if (localStep < 0 || localStep >= 32) return;
       const cells = row.querySelectorAll('.step');
       if (localStep < cells.length) cells[localStep].classList.add('playhead');
     });

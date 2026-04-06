@@ -55,6 +55,26 @@
     <kbd style="color:#888">&#8997;+click</kbd> to toggle lock trig.<br>
     <kbd style="color:#888">&#8679;+click</kbd> to toggle mute.
     <kbd style="color:#888">Click track name</kbd> to edit track defaults (note, velocity, length, speed, probability).
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer; color:#888">Audio preview coverage</summary>
+      <div style="margin-top:6px; padding-left:10px; border-left:2px solid #2a2a2a">
+        The built-in preview is a rough rhythmic sketch, not a hardware-accurate emulator.
+        Voices are hand-rolled 909-flavour synthesis picked by machine type &mdash; they do <em>not</em>
+        read the kit&rsquo;s filter, envelope, LFO, or SYN parameter bytes.
+        <div style="margin-top:6px"><b style="color:#aaa">Audible:</b>
+          machine type (per track or sound-locked), AMP volume &amp; pan (kit default / sound-lock default),
+          trig enable / mute / accent, retrig (count, rate, length, &infin;), swing flag, micro-timing.
+        </div>
+        <div style="margin-top:4px"><b style="color:#aaa">Ignored:</b>
+          all parameter locks (plocks), parameter slides, slide flag, note value &amp; length,
+          filter / envelope / LFO settings, SYN parameters beyond machine selection,
+          delay / reverb / distortion / compressor sends and FX, sample playback (SMP is silent).
+        </div>
+        <div style="margin-top:4px; opacity:0.75">
+          Plock away freely &mdash; the hardware will play what you see, the preview just won&rsquo;t reflect those tweaks.
+        </div>
+      </div>
+    </details>
     <div style="margin-top:8px; opacity:0.55">
       Connects to the first MIDI port whose name contains &ldquo;rytm&rdquo; (case-insensitive).
       Requests the current workbuffer pattern and kit via SysEx. FW 1.70 binary format (compatible with 1.72).
@@ -67,12 +87,12 @@
   <button id="btn-log" class="log-toggle">Show Log</button>
   <div id="log-panel" class="log-panel" hidden></div>
 
-  <script src="ar-state.js?v=12"></script>
-  <script src="ar-constants.js?v=12"></script>
-  <script src="ar-sysex.js?v=12"></script>
-  <script src="ar-editor.js?v=12"></script>
-  <script src="ar-midi.js?v=12"></script>
-  <script src="ar-audio.js?v=12"></script>
+  <script src="ar-state.js?v=23"></script>
+  <script src="ar-constants.js?v=23"></script>
+  <script src="ar-sysex.js?v=23"></script>
+  <script src="ar-editor.js?v=23"></script>
+  <script src="ar-midi.js?v=23"></script>
+  <script src="ar-audio.js?v=23"></script>
   <script>
     AR.initUI();
     AR.midiInit();

@@ -93,15 +93,16 @@ button:disabled { opacity: 0.35; cursor: default; }
 }
 
 #status {
-  font-size: 0.8em;
-  padding: 6px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 2px;
+  font-size: 0.75em;
   color: var(--muted);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
 }
-#status.ok  { color: #5cb85c; border-color: #2d4a2d; }
-#status.err { color: #d9534f; border-color: #4a2d2d; }
+#status.ok  { color: #5cb85c; }
+#status.err { color: #d9534f; }
 
 #port-info {
   color: var(--muted);

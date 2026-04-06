@@ -571,13 +571,15 @@ var setStatus = AR.setStatus;
         spdVal.className = 'ts-val'; spdVal.style.cursor = 'default';
         spdVal.textContent = TRACK_SPEED_LABELS[speedIdx] || '1x';
         spdGrp.appendChild(spdLbl); spdGrp.appendChild(spdVal);
+        // Speed index: 0 = 2× (fastest), 6 = 1/8× (slowest).  So ▲ = faster
+        // maps to a *lower* byte value and ▼ = slower to a *higher* one.
         spdGrp.appendChild(tsMakeArrow('▼', () => {
           const cur = raw[trackBase + TRACK_SPEED_OFFSET] & SPEED_VALUE_MASK;
-          raw[trackBase + TRACK_SPEED_OFFSET] = (speedByte & SPEED_FLAGS_MASK) | (cur === 0 ? 6 : cur - 1);
+          raw[trackBase + TRACK_SPEED_OFFSET] = (speedByte & SPEED_FLAGS_MASK) | (cur >= 6 ? 0 : cur + 1);
         }));
         spdGrp.appendChild(tsMakeArrow('▲', () => {
           const cur = raw[trackBase + TRACK_SPEED_OFFSET] & SPEED_VALUE_MASK;
-          raw[trackBase + TRACK_SPEED_OFFSET] = (speedByte & SPEED_FLAGS_MASK) | (cur >= 6 ? 0 : cur + 1);
+          raw[trackBase + TRACK_SPEED_OFFSET] = (speedByte & SPEED_FLAGS_MASK) | (cur === 0 ? 6 : cur - 1);
         }));
         panel.appendChild(spdGrp);
       }
@@ -868,11 +870,12 @@ var setStatus = AR.setStatus;
       // Master change length: only in advanced mode
       if (scaleMode) buildMasterChgField(raw, line);
 
-      // Master speed: arrows-only
+      // Master speed: arrows-only.  Same inverted mapping as per-track speed
+      // (0 = 2× fastest, 6 = 1/8× slowest), so ▲ = faster decrements the byte.
       const masterSpd = raw.length > MASTER_SPEED_OFFSET ? raw[MASTER_SPEED_OFFSET] : 2;
       metaArrowField('Spd', TRACK_SPEED_LABELS[masterSpd] || '1x',
-        () => { let s = raw[MASTER_SPEED_OFFSET]; raw[MASTER_SPEED_OFFSET] = s === 0 ? 6 : s - 1; },
         () => { let s = raw[MASTER_SPEED_OFFSET]; raw[MASTER_SPEED_OFFSET] = s >= 6 ? 0 : s + 1; },
+        () => { let s = raw[MASTER_SPEED_OFFSET]; raw[MASTER_SPEED_OFFSET] = s === 0 ? 6 : s - 1; },
         line
       );
 

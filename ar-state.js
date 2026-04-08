@@ -25,6 +25,8 @@ AR.state = {
     stepPage:       0,     // 0 or 1
     openPanel:      null,  // { t, s, el } or null
     openTrackPanel: null,  // { t, el } or null
+    mutedTracks:    new Set(),  // session-only preview mutes (Set<int>)
+    soloedTracks:   new Set(),  // session-only preview solos (Set<int>)
   },
   requests: {
     pendingSounds: new Set(),  // slot numbers awaiting SysEx response
@@ -52,6 +54,15 @@ AR.loadKit = function(kit, syx) {
 AR.loadPlocks = function(coarse, fine) {
   AR.state.pattern.plocks    = coarse;
   AR.state.pattern.plockFine = fine;
+};
+
+// Preview-only audibility check.  If anything is soloed, only soloed tracks
+// are audible.  Otherwise, audible iff not in the muted set.  Mutes/solos
+// are session-only state — never persisted, never written to pattern data.
+AR.isTrackAudible = function(t) {
+  var ui = AR.state.ui;
+  if (ui.soloedTracks.size > 0) return ui.soloedTracks.has(t);
+  return !ui.mutedTracks.has(t);
 };
 
 // ─── UI element references (populated by AR.initUI after DOM ready) ──────────

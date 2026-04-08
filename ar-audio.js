@@ -654,6 +654,8 @@
   }
 
   function scheduleStep(ts, t, tickOfStep) {
+    // Preview-only mute / solo (session state, never written to pattern).
+    if (!AR.isTrackAudible(t)) return;
     const trk = ts.trk;
     const s = ts.stepIdx;
     const flags = effectiveFlags(trk, s);

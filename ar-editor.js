@@ -356,6 +356,10 @@ var setStatus = AR.setStatus;
         row.className = 'track-row';
         row.dataset.track = t;
         if (t === 12) row.style.marginTop = '10px';
+        // Dim the row if it won't be heard in the preview.  FX track (t=12)
+        // never has a voice, so its M/S state is meaningless — leave it
+        // undimmed regardless.
+        if (t < 12 && !AR.isTrackAudible(t)) row.classList.add('track-dim');
 
         // ── Label ──
         const label = document.createElement('div');
@@ -370,6 +374,42 @@ var setStatus = AR.setStatus;
           machSpan.textContent = MACHINES[machType].name;
           label.appendChild(machSpan);
         }
+
+        // ── M / S buttons (preview-only mute / solo, session state) ──
+        // FX track has no voice → no mute/solo buttons.
+        if (t < 12) {
+          const ms = document.createElement('span');
+          ms.className = 'track-ms';
+
+          const muteBtn = document.createElement('span');
+          muteBtn.className = 'track-ms-btn track-mute' +
+            (S.ui.mutedTracks.has(t) ? ' on' : '');
+          muteBtn.textContent = 'M';
+          muteBtn.title = 'Mute (preview only)';
+          muteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (S.ui.mutedTracks.has(t)) S.ui.mutedTracks.delete(t);
+            else                          S.ui.mutedTracks.add(t);
+            refreshAfterEdit();
+          });
+
+          const soloBtn = document.createElement('span');
+          soloBtn.className = 'track-ms-btn track-solo' +
+            (S.ui.soloedTracks.has(t) ? ' on' : '');
+          soloBtn.textContent = 'S';
+          soloBtn.title = 'Solo (preview only)';
+          soloBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (S.ui.soloedTracks.has(t)) S.ui.soloedTracks.delete(t);
+            else                           S.ui.soloedTracks.add(t);
+            refreshAfterEdit();
+          });
+
+          ms.appendChild(muteBtn);
+          ms.appendChild(soloBtn);
+          label.appendChild(ms);
+        }
+
         label.style.cursor = 'pointer';
         label.addEventListener('click', (e) => {
           e.stopPropagation();

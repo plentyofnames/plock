@@ -257,6 +257,38 @@ button:disabled { opacity: 0.35; cursor: default; }
   font-size: 0.72em;
   color: #555;
 }
+/* Per-track preview mute / solo buttons (M / S) — session-only state,
+   never written to pattern data. */
+.track-ms {
+  display: flex;
+  gap: 3px;
+  margin-top: 1px;
+}
+.track-ms-btn {
+  font-size: 0.78em;
+  padding: 0 4px;
+  border-radius: 2px;
+  border: 1px solid #2a2a2a;
+  color: #4a4a4a;
+  cursor: pointer;
+  letter-spacing: 0;
+  user-select: none;
+  line-height: 1.2;
+}
+.track-ms-btn:hover { color: #aaa; border-color: #555; }
+.track-mute.on {
+  color: #ff8070;
+  border-color: #6b2520;
+  background: rgba(255,80,70,0.14);
+}
+.track-solo.on {
+  color: #ffbb44;
+  border-color: #6b4a14;
+  background: rgba(255,180,50,0.14);
+}
+/* Dim a row's steps (but not its label / M/S buttons) when it won't be
+   heard in the preview — muted, or another track is soloed. */
+.track-row.track-dim .steps-outer { opacity: 0.35; }
 .track-settings-panel {
   background: var(--surface);
   border: 1px solid var(--border);

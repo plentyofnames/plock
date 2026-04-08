@@ -108,19 +108,44 @@ function renderPicker() {
     empty.className = 'pick-empty';
     empty.textContent = 'No Analog Rytm found';
     picker.appendChild(empty);
-    return;
+  } else {
+    for (const name of devices) {
+      const item = document.createElement('div');
+      item.className = 'pick-item' + (name === current ? ' current' : '');
+      item.textContent = name;
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hidePicker();
+        connectToNamedDevice(name, /*requestOnConnect=*/true);
+      });
+      picker.appendChild(item);
+    }
   }
-  for (const name of devices) {
-    const item = document.createElement('div');
-    item.className = 'pick-item' + (name === current ? ' current' : '');
-    item.textContent = name;
-    item.addEventListener('click', (e) => {
+  if (current) {
+    const sep = document.createElement('div');
+    sep.className = 'pick-sep';
+    picker.appendChild(sep);
+    const dis = document.createElement('div');
+    dis.className = 'pick-item pick-disconnect';
+    dis.textContent = 'Disconnect';
+    dis.addEventListener('click', (e) => {
       e.stopPropagation();
       hidePicker();
-      connectToNamedDevice(name, /*requestOnConnect=*/true);
+      disconnectMidi();
     });
-    picker.appendChild(item);
+    picker.appendChild(dis);
   }
+}
+
+function disconnectMidi() {
+  if (S.midi.input)  { try { S.midi.input.onmidimessage = null; } catch (e) {} }
+  S.midi.input  = null;
+  S.midi.output = null;
+  try { localStorage.removeItem(MIDI_LS_KEY); } catch (e) {}
+  updateConnectUI(null);
+  U.btnRefresh.disabled = true;
+  updateSendBtn();
+  setStatus('Disconnected');
 }
 
 function showPicker() {

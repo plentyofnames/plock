@@ -89,9 +89,14 @@ sentinel), `writePlockFine` (0–127), `writeByte` (0–255). Also added explici
 clamping in onChange handlers for micro-timing (±23), retrig rate (0–16),
 retrig length (0–127), and retrig velocity (−128–+127).
 
-### 16. MIDI as global side effects
-- `onstatechange` and `onmidimessage` registered globally
-- No way to disconnect/reset without page reload
+### 16. ~~MIDI as global side effects~~ ✅
+`connectMidi()` was split into `requestAccess` / `connectToNamedDevice` /
+`onConnectClick` with a device picker, persistence in `localStorage`, silent
+reconnect gated by `navigator.permissions`, and an explicit Disconnect entry
+in the picker that nulls input/output, clears the saved device, and resets
+the Connect button. `onstatechange` now also drops a vanished device
+mid-session. Browser-incompatibility warning shown when `requestMIDIAccess`
+is missing.
 
 ## Features / Data
 

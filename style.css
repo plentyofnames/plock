@@ -109,6 +109,9 @@ button:disabled { opacity: 0.35; cursor: default; }
 }
 .midi-picker .pick-item:hover { background: #2a2a2a; color: var(--accent); }
 .midi-picker .pick-item.current { color: #5cb85c; }
+.midi-picker .pick-item.pick-disconnect { color: #d9534f; }
+.midi-picker .pick-item.pick-disconnect:hover { color: #ff6b60; }
+.midi-picker .pick-sep { height: 1px; background: #2a2a2a; margin: 4px 0; }
 .midi-picker .pick-empty { padding: 7px 14px; font-size: 0.8em; color: var(--muted); }
 #btn-play.playing { border-color: #5cb85c; color: #5cb85c; }
 #btn-fill.active  { border-color: #ffbb44; color: #ffbb44; }

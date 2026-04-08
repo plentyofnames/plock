@@ -13,18 +13,25 @@
   <div class="subtitle">Analog Rytm Pattern Editor by <a href="http://plentyofnam.es" target="_blank">Plenty of Names in the Club</a><br><a href="https://plentyofnames.bandcamp.com" target="_blank">Bandcamp</a> | <a href="https://soundcloud.com/plentyofnames" target="_blank">SoundCloud</a> | <a href="https://www.instagram.com/plentyofnames" target="_blank">Instagram</a></div>
 
   <div class="controls">
-    <button id="btn-connect">Connect MIDI</button>
-    <button id="btn-refresh" disabled>Request Pattern</button>
+    <div class="connect-wrap">
+      <button id="btn-connect"><span id="btn-connect-label">Connect MIDI</span><span class="chev">&#9662;</span></button>
+      <div id="midi-picker" class="midi-picker" hidden></div>
+    </div>
+    <span class="ctrl-sep"></span>
+    <button id="btn-new">New</button>
     <button id="btn-load-syx">Load .syx</button>
     <button id="btn-save-syx" disabled>Save .syx</button>
-    <button id="btn-clear" disabled>Clear Pattern</button>
+    <span class="ctrl-sep"></span>
+    <button id="btn-refresh" disabled>Get from AR</button>
     <button id="btn-send" disabled>Send to AR</button>
-    <input type="file" id="syx-file" accept=".syx" hidden>
+    <span class="ctrl-sep"></span>
+    <button id="btn-clear" disabled>Clear</button>
     <span class="ctrl-sep"></span>
     <button id="btn-play" disabled>▶ Play</button>
     <button id="btn-fill" class="fill-btn" disabled>FILL</button>
-    <div id="status">Not connected</div>
+    <input type="file" id="syx-file" accept=".syx" hidden>
   </div>
+  <div id="status">Not connected</div>
 
   <div id="pattern-meta"></div>
 
@@ -77,9 +84,8 @@
       </div>
     </details>
     <div style="margin-top:8px; opacity:0.55">
-      Connects to the first MIDI port whose name contains &ldquo;rytm&rdquo; (case-insensitive).
+      Connects to a MIDI port whose name contains &ldquo;rytm&rdquo; (case-insensitive).
       Requests the current workbuffer pattern and kit via SysEx. FW 1.70 binary format (compatible with 1.72).
-      <div id="port-info"></div>
     </div>
   </div>
 
@@ -88,12 +94,12 @@
   <button id="btn-log" class="log-toggle">Show Log</button>
   <div id="log-panel" class="log-panel" hidden></div>
 
-  <script src="ar-state.js?v=23"></script>
-  <script src="ar-constants.js?v=23"></script>
-  <script src="ar-sysex.js?v=23"></script>
-  <script src="ar-editor.js?v=23"></script>
-  <script src="ar-midi.js?v=23"></script>
-  <script src="ar-audio.js?v=23"></script>
+  <script src="ar-state.js?v=24"></script>
+  <script src="ar-constants.js?v=24"></script>
+  <script src="ar-sysex.js?v=24"></script>
+  <script src="ar-editor.js?v=24"></script>
+  <script src="ar-midi.js?v=24"></script>
+  <script src="ar-audio.js?v=24"></script>
   <script>
     AR.initUI();
     AR.midiInit();

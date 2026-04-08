@@ -70,6 +70,34 @@ button:hover:not(:disabled) {
 button:disabled { opacity: 0.35; cursor: default; }
 
 .ctrl-sep { width: 1px; align-self: stretch; background: #2a2a2a; margin: 0 4px; }
+
+.connect-wrap { position: relative; display: inline-block; }
+#btn-connect .chev { margin-left: 6px; opacity: 0.7; font-size: 0.75em; }
+#btn-connect.connected { border-color: #5cb85c; color: #5cb85c; }
+
+.midi-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  background: var(--surface);
+  border: 1px solid #3a3a3a;
+  border-radius: 2px;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  padding: 4px 0;
+}
+.midi-picker .pick-item {
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 0.85em;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  color: var(--fg);
+}
+.midi-picker .pick-item:hover { background: #2a2a2a; color: var(--accent); }
+.midi-picker .pick-item.current { color: #5cb85c; }
+.midi-picker .pick-empty { padding: 7px 14px; font-size: 0.8em; color: var(--muted); }
 #btn-play.playing { border-color: #5cb85c; color: #5cb85c; }
 #btn-fill.active  { border-color: #ffbb44; color: #ffbb44; }
 /* Playhead: quick white flash that fades out over ~200 ms so successive
@@ -99,16 +127,11 @@ button:disabled { opacity: 0.35; cursor: default; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 280px;
+  margin: -6px 0 16px;
+  min-height: 1em;
 }
 #status.ok  { color: #5cb85c; }
 #status.err { color: #d9534f; }
-
-#port-info {
-  color: var(--muted);
-  margin-bottom: 20px;
-  min-height: 1em;
-}
 
 /* Pattern meta info */
 #pattern-meta {

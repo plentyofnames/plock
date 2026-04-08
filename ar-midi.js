@@ -6,21 +6,168 @@ var setStatus = AR.setStatus;
 
 // ─── MIDI connect ─────────────────────────────────────────────────────────
 
-async function connectMidi() {
-  setStatus('Connecting to MIDI…');
+const MIDI_LS_KEY = 'plock.midi.device';
+
+function lsGetDevice() {
+  try { return localStorage.getItem(MIDI_LS_KEY) || null; } catch (e) { return null; }
+}
+function lsSetDevice(name) {
+  try { localStorage.setItem(MIDI_LS_KEY, name); } catch (e) {}
+}
+
+// Returns array of device names that appear as both an input and an output
+// and whose name matches /rytm/i.
+function listRytmDevices() {
+  if (!S.midi.access) return [];
+  const ins = new Set();
+  const outs = new Set();
+  for (const [, p] of S.midi.access.inputs)  if (/rytm/i.test(p.name)) ins.add(p.name);
+  for (const [, p] of S.midi.access.outputs) if (/rytm/i.test(p.name)) outs.add(p.name);
+  const both = [];
+  for (const n of ins) if (outs.has(n)) both.push(n);
+  both.sort();
+  return both;
+}
+
+async function requestAccess() {
+  if (S.midi.access) return true;
+  if (!navigator.requestMIDIAccess) {
+    setStatus('Web MIDI not supported in this browser', 'err');
+    return false;
+  }
   try {
     S.midi.access = await navigator.requestMIDIAccess({ sysex: true });
   } catch (e) {
     setStatus('MIDI access denied', 'err');
+    return false;
+  }
+  S.midi.access.onstatechange = onMidiStateChange;
+  return true;
+}
+
+function onMidiStateChange() {
+  // If currently connected device disappeared, drop it.
+  if (S.midi.input || S.midi.output) {
+    const name = (S.midi.input && S.midi.input.name) || (S.midi.output && S.midi.output.name);
+    const stillThere = listRytmDevices().includes(name);
+    if (!stillThere) {
+      S.midi.input = null;
+      S.midi.output = null;
+      updateConnectUI(null);
+      setStatus('MIDI device disconnected');
+      U.btnRefresh.disabled = true;
+      updateSendBtn();
+      return;
+    }
+  } else {
+    // Not connected — try to silently reconnect to remembered device if it appeared.
+    const remembered = lsGetDevice();
+    if (remembered && listRytmDevices().includes(remembered)) {
+      connectToNamedDevice(remembered, /*requestOnConnect=*/true);
+    }
+  }
+  // Refresh picker if it's open
+  if (!U.midiPicker.hidden) renderPicker();
+}
+
+function connectToNamedDevice(name, requestOnConnect) {
+  if (!S.midi.access) return false;
+  let inp = null, out = null;
+  for (const [, p] of S.midi.access.inputs)  if (p.name === name) { inp = p; break; }
+  for (const [, p] of S.midi.access.outputs) if (p.name === name) { out = p; break; }
+  if (!inp || !out) return false;
+  S.midi.input  = inp;
+  S.midi.output = out;
+  S.midi.input.onmidimessage = onMidiMessage;
+  lsSetDevice(name);
+  updateConnectUI(name);
+  U.btnRefresh.disabled = false;
+  updateSendBtn();
+  setStatus('MIDI: ' + name, 'ok');
+  if (requestOnConnect) requestPattern();
+  return true;
+}
+
+function updateConnectUI(name) {
+  if (name) {
+    U.btnConnectLabel.textContent = 'MIDI: ' + name;
+    U.btnConnect.classList.add('connected');
+  } else {
+    U.btnConnectLabel.textContent = 'Connect MIDI';
+    U.btnConnect.classList.remove('connected');
+  }
+}
+
+function renderPicker() {
+  const picker = U.midiPicker;
+  picker.innerHTML = '';
+  const devices = listRytmDevices();
+  const current = (S.midi.input && S.midi.input.name) || null;
+  if (devices.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'pick-empty';
+    empty.textContent = 'No Analog Rytm found';
+    picker.appendChild(empty);
     return;
   }
-  S.midi.access.onstatechange = () => {
-    const hadRytm = !!(S.midi.input && S.midi.output);
-    findPorts();
-    if (!hadRytm && S.midi.input && S.midi.output) requestPattern();
-  };
-  findPorts();
-  if (S.midi.input && S.midi.output) requestPattern();
+  for (const name of devices) {
+    const item = document.createElement('div');
+    item.className = 'pick-item' + (name === current ? ' current' : '');
+    item.textContent = name;
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hidePicker();
+      connectToNamedDevice(name, /*requestOnConnect=*/true);
+    });
+    picker.appendChild(item);
+  }
+}
+
+function showPicker() {
+  renderPicker();
+  U.midiPicker.hidden = false;
+  // Close on outside click
+  setTimeout(() => document.addEventListener('click', onDocClickForPicker), 0);
+}
+function hidePicker() {
+  U.midiPicker.hidden = true;
+  document.removeEventListener('click', onDocClickForPicker);
+}
+function onDocClickForPicker(e) {
+  if (!U.midiPicker.contains(e.target) && e.target !== U.btnConnect && !U.btnConnect.contains(e.target)) {
+    hidePicker();
+  }
+}
+
+async function onConnectClick() {
+  const ok = await requestAccess();
+  if (!ok) return;
+  const devices = listRytmDevices();
+  // First-ever connect with exactly one device → skip picker
+  if (!S.midi.input && devices.length === 1) {
+    connectToNamedDevice(devices[0], /*requestOnConnect=*/true);
+    return;
+  }
+  if (U.midiPicker.hidden) showPicker(); else hidePicker();
+}
+
+// Silent reconnect on page load: only if permission already granted.
+async function trySilentReconnect() {
+  const remembered = lsGetDevice();
+  if (!remembered) return;
+  if (!navigator.permissions || !navigator.requestMIDIAccess) return;
+  let perm;
+  try {
+    perm = await navigator.permissions.query({ name: 'midi', sysex: true });
+  } catch (e) { return; }
+  if (perm.state !== 'granted') return;
+  try {
+    S.midi.access = await navigator.requestMIDIAccess({ sysex: true });
+  } catch (e) { return; }
+  S.midi.access.onstatechange = onMidiStateChange;
+  if (listRytmDevices().includes(remembered)) {
+    connectToNamedDevice(remembered, /*requestOnConnect=*/true);
+  }
 }
 
 function requestPattern() {
@@ -30,37 +177,6 @@ function requestPattern() {
   setStatus('Requesting pattern…');
   S.midi.output.send(PATTERN_REQUEST_X);
   S.midi.output.send(KIT_REQUEST_X);
-}
-
-function findPorts() {
-  S.midi.input  = null;
-  S.midi.output = null;
-
-  const inNames  = [];
-  const outNames = [];
-
-  for (const [, p] of S.midi.access.inputs) {
-    inNames.push(p.name);
-    if (p.name.toLowerCase().includes('rytm')) S.midi.input = p;
-  }
-  for (const [, p] of S.midi.access.outputs) {
-    outNames.push(p.name);
-    if (p.name.toLowerCase().includes('rytm')) S.midi.output = p;
-  }
-
-  U.portInfoEl.textContent =
-    'IN: ' + (inNames.join(', ') || '—') +
-    '   OUT: ' + (outNames.join(', ') || '—');
-
-  if (S.midi.input && S.midi.output) {
-    S.midi.input.onmidimessage = onMidiMessage;
-    setStatus('Connected → ' + S.midi.input.name, 'ok');
-    U.btnRefresh.disabled = false;
-  } else {
-    setStatus('Analog Rytm not found — connect the device and try again.', 'err');
-    U.btnRefresh.disabled = true;
-  }
-  updateSendBtn();
 }
 
 function updateSendBtn() {
@@ -238,8 +354,12 @@ function sendPatternToAR() {
 // ─── Init: wire up event listeners ───────────────────────────────────────
 
 AR.midiInit = function() {
-  U.btnConnect.addEventListener('click', connectMidi);
+  U.btnConnect.addEventListener('click', (e) => { e.stopPropagation(); onConnectClick(); });
   U.btnRefresh.addEventListener('click', requestPattern);
+  U.btnNew.addEventListener('click', () => {
+    if (S.pattern.raw && !confirm('Discard current pattern and start a new one?')) return;
+    AR.newPattern();
+  });
   U.btnLoadSyx.addEventListener('click', () => U.syxFileIn.click());
 
   U.syxFileIn.addEventListener('change', () => {
@@ -317,5 +437,5 @@ AR.midiInit = function() {
     if (S.pattern.raw) renderGrid(S.pattern.raw, S.ui.stepPage);
   });
 
-  connectMidi();
+  trySilentReconnect();
 };

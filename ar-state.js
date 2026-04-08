@@ -59,6 +59,9 @@ AR.ui = {};
 
 AR.initUI = function() {
   AR.ui.btnConnect  = document.getElementById('btn-connect');
+  AR.ui.btnConnectLabel = document.getElementById('btn-connect-label');
+  AR.ui.midiPicker  = document.getElementById('midi-picker');
+  AR.ui.btnNew      = document.getElementById('btn-new');
   AR.ui.btnRefresh  = document.getElementById('btn-refresh');
   AR.ui.btnLoadSyx  = document.getElementById('btn-load-syx');
   AR.ui.btnSaveSyx  = document.getElementById('btn-save-syx');
@@ -68,7 +71,6 @@ AR.initUI = function() {
   AR.ui.btnPage0    = document.getElementById('btn-page0');
   AR.ui.btnPage1    = document.getElementById('btn-page1');
   AR.ui.statusEl    = document.getElementById('status');
-  AR.ui.portInfoEl  = document.getElementById('port-info');
   AR.ui.metaEl      = document.getElementById('pattern-meta');
   AR.ui.gridEl      = document.getElementById('grid');
   AR.ui.btnLog      = document.getElementById('btn-log');

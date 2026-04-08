@@ -1,0 +1,8 @@
+.DS_Store
+__pycache__/
+.claude/worktrees/
+
+# Local-only reference material and test fixtures
+libanalogrytm/
+generate_test_syx.py
+test_pattern.syx

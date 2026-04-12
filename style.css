@@ -307,9 +307,10 @@ button:disabled { opacity: 0.35; cursor: default; }
 .track-row.track-dim .steps-outer { opacity: 0.35; }
 .track-row.panel-target {
   background: #131a20;
-  outline: 1px solid #2a4a6a;
-  outline-offset: -1px;
+  border: 1px solid #2a4a6a;
   border-radius: 0 0 2px 2px;
+  padding: 4px 6px;
+  margin: -1px -7px 0;
 }
 .track-settings-panel {
   background: #131a20;

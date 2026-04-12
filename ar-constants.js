@@ -453,6 +453,17 @@
     const AR_SYSEX_DUMP_ID_SOUND    = 0x53;
     const AR_SYSEX_REQUEST_ID_SOUND = 0x63;
 
+    // Sysex IDs for settings (contains project BPM at 0x04-0x05)
+    const AR_SYSEX_DUMP_ID_SETTINGS  = 0x56;
+    const AR_SYSEX_DUMPX_ID_SETTINGS = 0x5C;
+    const SETTINGS_BPM_MSB_OFFSET    = 0x04;   // project BPM, same encoding as pattern (×120)
+    const SETTINGS_BPM_LSB_OFFSET    = 0x05;
+    const SETTINGS_BPM_MODE_OFFSET   = 0x081F; // 0x01 = PTN (per-pattern), 0x00 = PRJ (project)
+
+    // Sysex IDs for global (MIDI config, routing, metronome, etc.)
+    const AR_SYSEX_DUMP_ID_GLOBAL    = 0x57;
+    const AR_SYSEX_DUMPX_ID_GLOBAL   = 0x5D;
+
     // Workbuffer pattern request (0x6A)
     const PATTERN_REQUEST_X = new Uint8Array([
       SYSEX_START, 0x00, AR_ELEKTRON_MFR_1, AR_ELEKTRON_MFR_2, AR_PRODUCT_ID,
@@ -464,6 +475,20 @@
     const KIT_REQUEST_X = new Uint8Array([
       SYSEX_START, 0x00, AR_ELEKTRON_MFR_1, AR_ELEKTRON_MFR_2, AR_PRODUCT_ID,
       0x00, 0x68, 0x01, 0x01, 0x00,
+      0x00, 0x00, 0x00, 0x05, SYSEX_END
+    ]);
+
+    // Workbuffer settings request (0x6C)
+    const SETTINGS_REQUEST_X = new Uint8Array([
+      SYSEX_START, 0x00, AR_ELEKTRON_MFR_1, AR_ELEKTRON_MFR_2, AR_PRODUCT_ID,
+      0x00, 0x6C, 0x01, 0x01, 0x00,
+      0x00, 0x00, 0x00, 0x05, SYSEX_END
+    ]);
+
+    // Workbuffer global request (0x6D)
+    const GLOBAL_REQUEST_X = new Uint8Array([
+      SYSEX_START, 0x00, AR_ELEKTRON_MFR_1, AR_ELEKTRON_MFR_2, AR_PRODUCT_ID,
+      0x00, 0x6D, 0x01, 0x01, 0x00,
       0x00, 0x00, 0x00, 0x05, SYSEX_END
     ]);
 

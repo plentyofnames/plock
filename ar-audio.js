@@ -201,8 +201,14 @@
   function getPatternMeta() {
     const raw = AR.state.pattern.raw;
     if (!raw) return null;
-    // BPM is stored as u16be × 120 (see editor meta line: bpmRaw / 120)
-    const bpmRaw = (raw[BPM_MSB_OFFSET] << 8) | raw[BPM_LSB_OFFSET];
+    // BPM: use project BPM when in PRJ mode, pattern BPM when in PTN mode
+    const settings = AR.state.settings.raw;
+    const isPrjMode = settings &&
+      settings.length > SETTINGS_BPM_MODE_OFFSET &&
+      settings[SETTINGS_BPM_MODE_OFFSET] === 0x00;
+    const bpmRaw = isPrjMode
+      ? (settings[SETTINGS_BPM_MSB_OFFSET] << 8) | settings[SETTINGS_BPM_LSB_OFFSET]
+      : (raw[BPM_MSB_OFFSET] << 8) | raw[BPM_LSB_OFFSET];
     // master_length @0x3321 (u16be).  In normal mode this is the shared track
     // length.  In advanced mode it's the master-restart length: all tracks
     // snap back to step 0 at this boundary regardless of their own length.

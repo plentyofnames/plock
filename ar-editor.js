@@ -171,6 +171,22 @@ var setStatus = AR.setStatus;
       }
       if (hasSoundLock) cls += ' has-sound-lock';
       if (beyond) cls += ' inactive';
+
+      // Sound lock: show machine abbreviation and warn on mismatch
+      let sndMachineType = null;
+      if (hasSoundLock && S.pattern.soundPool.has(sndLock)) {
+        const ps = S.pattern.soundPool.get(sndLock);
+        if (ps.length > MACHINE_TYPE_OFFSET) {
+          sndMachineType = ps[MACHINE_TYPE_OFFSET];
+          if (sndMachineType < MACHINES.length) {
+            const trackMachine = getTrackMachineType(t);
+            if (trackMachine !== null && sndMachineType !== trackMachine) {
+              cls += ' snd-mismatch';
+            }
+          }
+        }
+      }
+
       cell.className = cls;
       cell.dataset.step = stepIdx;
 
@@ -208,11 +224,11 @@ var setStatus = AR.setStatus;
       if (isSlide)      modParts.push('SLIDE');
       if (hasSoundLock) {
         let sndTip = 'SND:' + (sndLock + 1);
-        if (S.pattern.soundPool.has(sndLock)) {
-          const ps = S.pattern.soundPool.get(sndLock);
-          if (ps.length > MACHINE_TYPE_OFFSET) {
-            const mt = ps[MACHINE_TYPE_OFFSET];
-            if (mt < MACHINES.length) sndTip += ' ' + MACHINES[mt].name;
+        if (sndMachineType !== null && sndMachineType < MACHINES.length) {
+          sndTip += ' ' + MACHINES[sndMachineType].name;
+          const trackMachine = getTrackMachineType(t);
+          if (trackMachine !== null && sndMachineType !== trackMachine) {
+            sndTip += ' \u26A0 mismatch';
           }
         }
         modParts.push(sndTip);
@@ -927,16 +943,27 @@ var setStatus = AR.setStatus;
       );
 
       // BPM: 16-bit BE, rawValue = BPM × 120
-      const bpmRaw = readU16BE(raw, BPM_MSB_OFFSET);
-      const bpmStr = bpmRaw ? (bpmRaw / 120).toFixed(1) : '—';
-      metaField('BPM', bpmStr, bpmRaw ? (bpmRaw / 120).toFixed(1) : '120.0', (val) => {
-        const bpm = parseFloat(val);
-        if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
-          const rv = Math.round(bpm * 120);
-          writeU16BE(raw, BPM_MSB_OFFSET, rv);
-        }
-        refreshAfterEdit();
-      }, { width: '52px' }, line);
+      // Settings offset 0x081F: 0x01 = PTN mode, 0x00 = PRJ mode
+      const isPrjMode = S.settings.raw &&
+        S.settings.raw.length > SETTINGS_BPM_MODE_OFFSET &&
+        S.settings.raw[SETTINGS_BPM_MODE_OFFSET] === 0x00;
+
+      if (isPrjMode) {
+        const prjBpmRaw = readU16BE(S.settings.raw, SETTINGS_BPM_MSB_OFFSET);
+        const prjBpmStr = prjBpmRaw ? (prjBpmRaw / 120).toFixed(1) : '—';
+        metaLabel('BPM', prjBpmStr + ' (PRJ)', line);
+      } else {
+        const bpmRaw = readU16BE(raw, BPM_MSB_OFFSET);
+        const bpmStr = bpmRaw ? (bpmRaw / 120).toFixed(1) : '—';
+        metaField('BPM', bpmStr, bpmRaw ? (bpmRaw / 120).toFixed(1) : '120.0', (val) => {
+          const bpm = parseFloat(val);
+          if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
+            const rv = Math.round(bpm * 120);
+            writeU16BE(raw, BPM_MSB_OFFSET, rv);
+          }
+          refreshAfterEdit();
+        }, { width: '52px' }, line);
+      }
 
       // Swing: raw 0-30, displayed as 50-80%
       const swingAmt = readU8(raw, SWING_AMOUNT_OFFSET);

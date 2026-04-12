@@ -100,12 +100,12 @@ is missing.
 
 ## Features / Data
 
-### 17. Request global settings for project BPM
-- Pattern BPM field (`0x332A`) is only used when AR BPM mode = PTN
-- When BPM mode = PRJ, the pattern stores a stale/default 120.0 — not the actual tempo
-- Request the global/project settings SysEx to get the real BPM
-- If project BPM mode: show project BPM as read-only with "(PRJ)" indicator
-- If pattern BPM mode: show pattern BPM as editable (current behaviour)
+### 17. ~~Request global settings for project BPM~~ ✅
+Requests settings + global workbuffers on connect/refresh. BPM mode flag
+found at settings offset `0x081F` (0x01=PTN, 0x00=PRJ). In PRJ mode the
+meta bar shows project BPM as read-only with "(PRJ)" label; in PTN mode
+the pattern BPM is editable as before. Audio preview engine also honours
+the correct BPM source.
 
 ### 18. ~~Audio preview engine (browser-based playback)~~ ✅
 Sequencer + 909-flavour voices shipped: tick-based lookahead scheduler on a
@@ -116,13 +116,12 @@ master-length restart), per-track playheads. Coverage panel in the editor
 documents what is and isn't audible. See `NOTES-audio-preview.md` for the
 full design notes plus the up-to-date Done / Open breakdown.
 
-### 19. Request sound pool for sound lock awareness
-- Pool entries are *consumed* when present (machine type, AMP vol/pan, step
-  panel display) but we don't actively *request* the pool over SysEx
-- Still TODO: send the sound-pool request, then:
-  - Show the machine name for each sound lock in the grid
-  - Warn when a sound lock's machine doesn't match the track
-  - Use correct pool sound defaults when displaying plock values for locked steps
+### 19. ~~Request sound pool for sound lock awareness~~ ✅
+All 128 sound pool slots are now requested upfront on pattern load (fast
+over USB). Machine mismatch detection: when a sound-locked step's pool
+machine differs from the track's kit machine, the step gets a yellow
+corner indicator and a ⚠ mismatch warning in the tooltip. Step panel
+already used pool sound data for machine type and plock display.
 
 ## Bug Fixes / Accuracy
 

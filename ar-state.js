@@ -22,6 +22,12 @@ AR.state = {
     soundPool:    new Map(),  // slot (0-127) → decoded raw sound bytes
     soundPoolSyx: new Map(),  // slot (0-127) → original SysEx bytes (for saving)
   },
+  settings: {
+    raw:          null,   // Uint8Array — decoded settings bytes (project BPM at 0x04-0x05)
+  },
+  global: {
+    raw:          null,   // Uint8Array — decoded global bytes (MIDI config, routing, etc.)
+  },
   ui: {
     stepPage:       0,     // 0 or 1
     openPanel:      null,  // { t, s, el } or null

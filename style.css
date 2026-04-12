@@ -473,6 +473,11 @@ button:disabled { opacity: 0.35; cursor: default; }
   background: #cc44aa;
   clip-path: polygon(10px 0, 18px 0, 0 18px, 0 10px);
 }
+/* Sound lock machine mismatch — yellow triangle border */
+.step.snd-mismatch::before {
+  border-color: #cc9900 transparent transparent transparent !important;
+}
+
 /* Beat groups — 4-step sub-groups within each 16-step group */
 .beat-group {
   display: flex;

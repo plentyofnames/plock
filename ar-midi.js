@@ -202,6 +202,22 @@ function requestPattern() {
   setStatus('Requesting pattern…');
   S.midi.output.send(PATTERN_REQUEST_X);
   S.midi.output.send(KIT_REQUEST_X);
+  S.midi.output.send(SETTINGS_REQUEST_X);
+  S.midi.output.send(GLOBAL_REQUEST_X);
+}
+
+function requestAllSoundPool() {
+  if (!S.midi.output) return;
+  for (let i = 0; i < 128; i++) {
+    if (S.pattern.soundPool.has(i)) continue;
+    S.requests.pendingSounds.add(i);
+    const req = new Uint8Array([
+      SYSEX_START, 0x00, AR_ELEKTRON_MFR_1, AR_ELEKTRON_MFR_2, AR_PRODUCT_ID,
+      0x00, AR_SYSEX_REQUEST_ID_SOUND, 0x01, 0x01, i & 0x7F,
+      0x00, 0x00, 0x00, 0x05, SYSEX_END
+    ]);
+    S.midi.output.send(req);
+  }
 }
 
 function updateSendBtn() {
@@ -277,6 +293,29 @@ function handleSysex(syx) {
     return;
   }
 
+  // ── Settings dump (project BPM at 0x04-0x05) ─────────────────────────
+  if (dumpId === AR_SYSEX_DUMPX_ID_SETTINGS || dumpId === AR_SYSEX_DUMP_ID_SETTINGS) {
+    let raw;
+    try { raw = decodeSysex7to8(syx); } catch (e) {
+      setStatus('Settings decode error: ' + e.message, 'err'); return;
+    }
+    S.settings.raw = raw;
+    setStatus('Settings received (' + raw.length + ' bytes)', 'ok');
+    if (S.pattern.raw) renderMeta();
+    return;
+  }
+
+  // ── Global dump (MIDI config, routing, etc.) ────────────────────────
+  if (dumpId === AR_SYSEX_DUMPX_ID_GLOBAL || dumpId === AR_SYSEX_DUMP_ID_GLOBAL) {
+    let raw;
+    try { raw = decodeSysex7to8(syx); } catch (e) {
+      setStatus('Global decode error: ' + e.message, 'err'); return;
+    }
+    S.global.raw = raw;
+    setStatus('Global received (' + raw.length + ' bytes)', 'ok');
+    return;
+  }
+
   // ── Pattern dump ─────────────────────────────────────────────────────
   const isPattern =
     dumpId === AR_SYSEX_DUMP_ID_PATTERN ||
@@ -308,10 +347,9 @@ function handleSysex(syx) {
   parsePlocks(raw);
   renderGrid(raw, S.ui.stepPage);
 
-  // Request sound pool sounds for any sound-locked steps (MIDI only)
+  // Request entire sound pool (fast over USB)
   if (S.midi.output) {
-    const neededSlots = scanSoundLocks(raw);
-    if (neededSlots.size > 0) requestSoundPoolSlots(neededSlots);
+    requestAllSoundPool();
   }
 
   setStatus('Ready', 'ok');

@@ -64,6 +64,37 @@
     <kbd style="color:#888">&#8679;+click</kbd> to toggle mute.
     <kbd style="color:#888">Click track name</kbd> to edit track defaults (note, velocity, length, speed, probability).
     <details style="margin-top:10px">
+      <summary style="cursor:pointer; color:#888">Step panel &amp; parameter editing</summary>
+      <div style="margin-top:6px; padding-left:10px; border-left:2px solid #2a2a2a">
+        <b style="color:#aaa">Opening:</b> <kbd>&#8984;+click</kbd> a step to open its parameter panel.
+        All SRC, SMPL, FLTR, AMP, and LFO parameters are shown with their current value &mdash;
+        either a <b>plock</b> (per-step override) or the <b>kit default</b>.<br>
+        <div style="margin-top:6px"><b style="color:#aaa">Sliders:</b>
+          Drag left/right to set a plock value. The slider range always extends one tick past
+          the maximum &mdash; dragging all the way to the right clears the plock and restores the
+          <b>kit default</b> (shown as &ldquo;TRK&rdquo; for note, velocity, and sound lock parameters).
+        </div>
+        <div style="margin-top:4px"><b style="color:#aaa">Sound locks:</b>
+          The SND slider only shows pool sounds that are actually saved on the AR.
+          Slide to &ldquo;TRK&rdquo; to remove the sound lock and use the kit&rsquo;s track sound.
+          Sound locks override the machine type and all kit defaults for that step.
+        </div>
+        <div style="margin-top:4px"><b style="color:#aaa">LFO destination:</b>
+          The DST slider scrolls through all valid destinations (OFF, synth params with
+          machine-specific names, sample, filter, and amp params).
+          When a step has a sound lock, the synth param names reflect the locked sound&rsquo;s machine.
+        </div>
+        <div style="margin-top:4px"><b style="color:#aaa">Trig flags:</b>
+          Toggle accent, mute, swing, slide, and retrig flags directly in the step panel.
+          Retrig parameters (count, rate, length, velocity curve) appear when retrig is enabled.
+        </div>
+        <div style="margin-top:4px"><b style="color:#aaa">Track defaults:</b>
+          Click a <b>track name</b> (BD, SD, &hellip;) to edit the default note, velocity, note length,
+          track speed, and trig probability that apply to all steps without per-step overrides.
+        </div>
+      </div>
+    </details>
+    <details style="margin-top:10px">
       <summary style="cursor:pointer; color:#888">Audio preview coverage</summary>
       <div style="margin-top:6px; padding-left:10px; border-left:2px solid #2a2a2a">
         The built-in preview is a rough rhythmic sketch, not a hardware-accurate emulator.

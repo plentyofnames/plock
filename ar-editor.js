@@ -1970,8 +1970,8 @@ var setStatus = AR.setStatus;
         let showVal = typeof showInput === 'number' ? displayFn(showInput) : showInput;
         // When not locked, show actual kit default instead of "TRK"
         if (!locked && showVal === 'TRK' && kitDef !== null) {
-          const clamped = Math.max(pMin, Math.min(showInput, pMax - 1));
-          showVal = displayFn(clamped);
+          const safe = (showInput >= pMin && showInput < pMax) ? showInput : pMin;
+          showVal = displayFn(safe);
         }
 
         body.appendChild(makeParamRow(lbl, showVal, locked, opts));
@@ -2195,10 +2195,11 @@ var setStatus = AR.setStatus;
       if (typeof showInput !== 'number') return showInput;
       const txt = displayFn(showInput);
       // When not locked, show the actual kit default instead of "TRK"
-      // (value may exceed enum range in synthetic default kits — clamp to valid)
+      // If value exceeds valid range (e.g. enum params in synthetic default kits),
+      // fall back to 0 — the AR's typical default for enum/waveform params.
       if (!locked && txt === 'TRK' && kitDef !== null) {
-        const clamped = Math.max(cfg.pMin, Math.min(showInput, cfg.pMax - 1));
-        return displayFn(clamped);
+        const safe = (showInput >= cfg.pMin && showInput < cfg.pMax) ? showInput : cfg.pMin;
+        return displayFn(safe);
       }
       return txt;
     }

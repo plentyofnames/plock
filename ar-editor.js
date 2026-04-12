@@ -901,7 +901,13 @@ var setStatus = AR.setStatus;
       const line = document.createElement('span');
       line.className = 'meta-line';
 
-      metaLabel('Pattern', S.pattern.name, line);
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = S.pattern.name;
+      if (S.pattern.dirty) nameSpan.style.fontStyle = 'italic';
+      const patSpan = document.createElement('span');
+      patSpan.appendChild(document.createTextNode('Pattern: '));
+      patSpan.appendChild(nameSpan);
+      line.appendChild(patSpan);
 
       // Kit number: 0-127 → 1-128, 0xFF → unassigned
       const kitNum = raw.length > KIT_NUMBER_OFFSET ? raw[KIT_NUMBER_OFFSET] : 0xFF;
@@ -1312,6 +1318,7 @@ var setStatus = AR.setStatus;
     };
 
     function refreshAfterEdit() {
+      S.pattern.dirty = true;
       const had = S.ui.openPanel ? { t: S.ui.openPanel.t, s: S.ui.openPanel.s } : null;
       const hadTrack = S.ui.openTrackPanel ? { t: S.ui.openTrackPanel.t } : null;
       renderMeta();

@@ -16,6 +16,7 @@ AR.state = {
     kitSyx:       null,   // Uint8Array — original kit SysEx (for round-trip save)
     syxMeta:      null,   // { devId, dumpId, verHi, verLo, objNr }
     name:         '',     // "Workbuffer" or "A01" etc.
+    dirty:        false,  // true once pattern has been edited since load/new
     plocks:       null,   // Array[13] of Map<type, Uint8Array[64]>
     plockFine:    null,   // Array[13] of Map<type, Uint8Array[64]> (0x80 companions)
     soundPool:    new Map(),  // slot (0-127) → decoded raw sound bytes
@@ -42,6 +43,7 @@ AR.loadPattern = function(raw, meta, name) {
   P.raw     = raw;
   P.syxMeta = meta;
   P.name    = name;
+  P.dirty   = false;
   P.soundPool.clear();
   P.soundPoolSyx.clear();
   AR.state.requests.pendingSounds.clear();

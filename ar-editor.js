@@ -927,27 +927,21 @@ var setStatus = AR.setStatus;
       const nameSpan = document.createElement('span');
       nameSpan.textContent = S.pattern.name;
       if (S.pattern.dirty) nameSpan.style.fontStyle = 'italic';
+      // Kit number: 0-127 → 1-128, 0xFF → unassigned (read-only display)
+      // TODO: investigate requesting all populated kits from AR via SysEx
+      //       so the user can switch kits and the editor loads the actual sound data.
+      //       For now, kit is not editable — only the workbuffer kit is available.
+      const kitNum = raw.length > KIT_NUMBER_OFFSET ? raw[KIT_NUMBER_OFFSET] : 0xFF;
+      const kitStr = (kitNum === 0xFF) ? '—' : String(kitNum + 1).padStart(2, '0');
+
       const patSpan = document.createElement('span');
       patSpan.appendChild(document.createTextNode('Pattern: '));
       patSpan.appendChild(nameSpan);
+      const kitLabel = document.createElement('span');
+      kitLabel.style.opacity = '0.55';
+      kitLabel.textContent = ' (Kit ' + kitStr + ')';
+      patSpan.appendChild(kitLabel);
       line.appendChild(patSpan);
-
-      // Kit number: 0-127 → 1-128, 0xFF → unassigned
-      const kitNum = raw.length > KIT_NUMBER_OFFSET ? raw[KIT_NUMBER_OFFSET] : 0xFF;
-      const kitStr = (kitNum === 0xFF) ? '—' : String(kitNum + 1).padStart(2, '0');
-      metaField('Kit', kitStr, kitNum === 0xFF ? '' : kitNum + 1, (val) => {
-        const n = parseInt(val, 10);
-        if (!isNaN(n) && n >= 1 && n <= 128) {
-          raw[KIT_NUMBER_OFFSET] = n - 1;
-        } else {
-          raw[KIT_NUMBER_OFFSET] = 0xFF;
-        }
-        refreshAfterEdit();
-      }, {}, line);
-      metaAppendArrows(line,
-        () => { const c = raw[KIT_NUMBER_OFFSET]; let n = (c === 0xFF ? 0 : c) - 1; if (n < 0) n = 127; raw[KIT_NUMBER_OFFSET] = n; },
-        () => { const c = raw[KIT_NUMBER_OFFSET]; let n = (c === 0xFF ? 0 : c) + 1; if (n > 127) n = 0; raw[KIT_NUMBER_OFFSET] = n; }
-      );
 
       // BPM: 16-bit BE, rawValue = BPM × 120
       // Settings offset 0x081F: 0x01 = PTN mode, 0x00 = PRJ mode
@@ -1251,31 +1245,45 @@ var setStatus = AR.setStatus;
       if (typeof updateSendBtn === 'function') updateSendBtn();
     };
 
-    // Default machine id per track (indices into MACHINES enum, matches
-    // generate_test_syx.py defaults).  Track 12 (FX) has no machine.
+    // Default machine id per track — extracted from AR hardware default kit.
+    // Track 12 (FX) has no machine.
     const DEFAULT_TRACK_MACHINES = [
       0,   // BD → BD_HARD
-      3,   // SD → SD_CLASSIC
-      5,   // RS → RS_CLASSIC
+      2,   // SD → SD_HARD
+      4,   // RS → RS_HARD
       6,   // CP → CP_CLASSIC
       7,   // BT → BT_CLASSIC
       8,   // LT → XT_CLASSIC
       8,   // MT → XT_CLASSIC
       8,   // HT → XT_CLASSIC
-      17,  // CH → CH_METALLIC
-      18,  // OH → OH_METALLIC
-      25,  // CY → CY_RIDE
+      9,   // CH → CH_CLASSIC
+      10,  // OH → OH_CLASSIC
+      11,  // CY → CY_CLASSIC
       12,  // CB → CB_CLASSIC
     ];
 
-    // Sensible per-section param defaults for a fresh kit (hi-bytes of s_u16_t).
-    // These mirror the values used by generate_test_syx.py for a plausible
-    // starting point (filter wide open, amp decay mid, vol 100, etc).
-    const DEF_SYNTH  = [100, 64, 80, 64, 64, 64, 64, 64];  // SYNTH_PARAM_1..8 @0x1C
-    const DEF_SAMPLE = [ 64, 64,  0,  0,  0,127,  0,100];  // SAMPLE_TUNE..VOLUME @0x2C
-    const DEF_FILT   = [  0, 64, 64, 32, 64,  0,  0, 64];  // FLT_ATTACK..ENV @0x3C
-    const DEF_AMP    = [  0,  0, 64,  0,  0,  0, 64,100];  // AMP_ATTACK..VOLUME @0x4C
-    const DEF_LFO    = [ 32,  1,  0,  0,  0,  0,  0, 64];  // LFO_SPEED..DEPTH @0x5E
+    // Per-track synth param defaults extracted from AR hardware default kit.
+    // Each sub-array is SYNTH_PARAM_1..8 hi-bytes for that track's machine.
+    const DEF_SYNTH_PER_TRACK = [
+      [100, 61, 47, 40, 90,  6,  0, 64],  // BD_HARD
+      [100, 64, 76,127, 64, 32, 64, 43],  // SD_HARD
+      [100, 64, 52,127, 48,  8, 64, 34],  // RS_HARD
+      [115, 64, 55,  2, 85, 90, 32, 90],  // CP_CLASSIC
+      [100, 80, 63,  0,  0,  1,  0,  0],  // BT_CLASSIC
+      [100, 98, 52, 36, 34,  5, 85, 64],  // XT_CLASSIC (LT)
+      [100,108, 70, 42, 29,  5,100, 64],  // XT_CLASSIC (MT)
+      [100,114, 89, 50, 27,  5,100, 64],  // XT_CLASSIC (HT)
+      [100, 64, 32, 64,  0,  0,  0,  0],  // CH_CLASSIC
+      [100, 64, 32, 64,  0,  0,  0,  0],  // OH_CLASSIC
+      [127, 64, 64, 64, 64,  0,  0,  0],  // CY_CLASSIC
+      [100, 65, 20, 54, 64, 64,  0,  0],  // CB_CLASSIC
+    ];
+
+    // Shared per-section defaults from AR hardware default kit (identical for all 12 tracks).
+    const DEF_SAMPLE = [ 64, 64,  0,  0,  0,120,  0,100];  // SAMPLE_TUNE..VOLUME @0x2C
+    const DEF_FILT   = [  0,  0, 64, 64,127,  0,  0, 64];  // FLT_ATTACK..ENV @0x3C
+    const DEF_AMP    = [  0,  0,127,  0,  0,  0, 64,110];  // AMP_ATTACK..VOLUME @0x4C
+    const DEF_LFO    = [112,  4, 64, 41,  0,  0,  0, 64];  // LFO_SPEED..DEPTH @0x5E
 
     function buildDefaultKit() {
       const AR_KIT_V5_SZ = 0x0A32;
@@ -1285,20 +1293,13 @@ var setStatus = AR.setStatus;
         const base = KIT_TRACKS_BASE + t * AR_SOUND_V5_SZ;
         const machIdx = DEFAULT_TRACK_MACHINES[t];
         kit[base + MACHINE_TYPE_OFFSET] = machIdx;
+        const synth = DEF_SYNTH_PER_TRACK[t];
         for (let i = 0; i < 8; i++) {
-          kit[base + 0x1C + i * 2] = DEF_SYNTH[i];
+          kit[base + 0x1C + i * 2] = synth[i];
           kit[base + 0x2C + i * 2] = DEF_SAMPLE[i];
           kit[base + 0x3C + i * 2] = DEF_FILT[i];
           kit[base + 0x4C + i * 2] = DEF_AMP[i];
           kit[base + 0x5E + i * 2] = DEF_LFO[i];
-        }
-        // Clamp synth params that are enums to valid range for this machine
-        const mach = MACHINES[machIdx];
-        if (mach?.enums) {
-          for (const [pi, enumArr] of Object.entries(mach.enums)) {
-            const off = base + 0x1C + Number(pi) * 2;
-            if (kit[off] >= enumArr.length) kit[off] = 0;
-          }
         }
       }
 

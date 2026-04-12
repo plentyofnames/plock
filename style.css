@@ -173,7 +173,7 @@ button:disabled { opacity: 0.35; cursor: default; }
 #pattern-meta .meta-line > span { display: inline-block; min-width: 130px; }
 #pattern-meta .meta-line > span:first-child { min-width: 185px; }
 #pattern-meta .meta-suffix { color: var(--muted); }
-#pattern-meta .meta-val { display: inline-block; min-width: 24px; text-align: left; }
+#pattern-meta .meta-val { display: inline-block; min-width: 32px; text-align: right; }
 #pattern-meta .meta-slider {
   -webkit-appearance: none; appearance: none;
   width: 40px; height: 4px; background: #333; border-radius: 2px;
@@ -187,8 +187,8 @@ button:disabled { opacity: 0.35; cursor: default; }
   width: 1px; height: 1em; background: var(--border); margin: 0 4px;
 }
 .track-settings-panel .ts-arrow {
-  cursor: pointer; user-select: none; padding: 0 1px;
-  color: #777; font-size: 0.7em; vertical-align: middle;
+  cursor: pointer; user-select: none; padding: 0;
+  color: #777; font-size: 0.75em; vertical-align: middle;
 }
 .track-settings-panel .ts-arrow:hover { color: var(--accent); }
 .track-settings-panel .ts-suffix { color: var(--muted); font-size: 0.85em; }
@@ -338,17 +338,21 @@ button:disabled { opacity: 0.35; cursor: default; }
 }
 .track-settings-panel .ts-group {
   display: flex;
-  gap: 8px;
+  gap: 2px;
   align-items: center;
 }
 .track-settings-panel .ts-lbl {
   color: var(--muted);
   font-size: 0.85em;
+  margin-right: 4px;
 }
 .track-settings-panel .ts-val {
+  display: inline-block;
+  min-width: 32px;
+  text-align: right;
   color: var(--fg);
   cursor: pointer;
-  padding: 1px 4px;
+  padding: 1px 3px 1px 4px;
   border-radius: 1px;
 }
 .track-settings-panel .ts-val:hover {

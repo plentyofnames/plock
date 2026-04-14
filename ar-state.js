@@ -45,6 +45,10 @@ AR.state = {
 
 // ─── State mutation helpers ──────────────────────────────────────────────────
 AR.loadPattern = function(raw, meta, name) {
+  // Restart audio preview so it picks up the new pattern buffer
+  // (cached trigBits subarrays point to the old Uint8Array)
+  var wasPlaying = AR.audio && AR.audio._state && AR.audio._state.playing;
+  if (wasPlaying) AR.audio.stop();
   var P = AR.state.pattern;
   P.raw     = raw;
   P.syxMeta = meta;
@@ -54,6 +58,8 @@ AR.loadPattern = function(raw, meta, name) {
   P.soundPoolSyx.clear();
   AR.state.requests.pendingSounds.clear();
   AR.state.requests.savePending = false;
+  // Defer restart so callers can finish setting up plocks/kit first
+  if (wasPlaying) Promise.resolve().then(function () { AR.audio.start(); });
 };
 
 AR.loadKit = function(kit, syx) {
@@ -201,7 +207,7 @@ AR.isTrackAudible = function(t) {
     var zoom = V / naturalW;
     // Minimum zoom: 16-step equivalent (~55% of full 32-step width).
     // Below this, the page scrolls horizontally instead of shrinking further.
-    var minZoom = 0.825;
+    var minZoom = 1;
     document.body.style.zoom = Math.max(zoom, minZoom);
   };
 

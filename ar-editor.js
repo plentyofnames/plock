@@ -524,11 +524,13 @@ var setStatus = AR.setStatus;
             const cells = stepsWrap.querySelectorAll('.step');
             const cell = cells[boundaryPageIdx];
             if (cell) {
-              const cr = cell.getBoundingClientRect();
-              const or = stepsOuter.getBoundingClientRect();
+              // Use offsetLeft/offsetWidth (unzoomed, relative to offsetParent
+              // = stepsOuter) so the marker tracks steps correctly under the
+              // body-level CSS `zoom` used for autoscaling.  getBoundingClientRect
+              // returns zoom-scaled viewport coords and would double-scale here.
               const marker = document.createElement('div');
               marker.className = 'master-len-marker';
-              marker.style.left = ((cr.right - or.left) + 1) + 'px';
+              marker.style.left = (cell.offsetLeft + cell.offsetWidth + 1) + 'px';
               stepsOuter.appendChild(marker);
             }
           }

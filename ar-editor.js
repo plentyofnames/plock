@@ -767,6 +767,63 @@ var setStatus = AR.setStatus;
       }
       panel.appendChild(flagGrp);
 
+      // ── Groove (auto micro-timing shuffle) ──
+      if (AR.groove) {
+        const gst = AR.groove.ensure(t);
+        const grGrp = document.createElement('span');
+        grGrp.className = 'ts-group';
+        const grLbl = document.createElement('span');
+        grLbl.className = 'ts-lbl'; grLbl.textContent = 'Groove';
+        grGrp.appendChild(grLbl);
+
+        const sel = document.createElement('select');
+        sel.className = 'ts-select';
+        for (const tpl of AR.groove.templates()) {
+          const o = document.createElement('option');
+          o.value = tpl.key; o.textContent = tpl.name;
+          if (tpl.key === gst.tpl) o.selected = true;
+          sel.appendChild(o);
+        }
+        sel.addEventListener('change', (e) => {
+          e.stopPropagation();
+          AR.groove.setTemplate(t, sel.value);
+          refreshAfterEdit();
+        });
+        grGrp.appendChild(sel);
+
+        const amt = document.createElement('input');
+        amt.type = 'range'; amt.min = '0'; amt.max = '100'; amt.step = '1';
+        amt.value = String(gst.amt);
+        amt.className = 'ts-range';
+        amt.disabled = gst.tpl === 'none';
+        const out = document.createElement('span');
+        out.className = 'ts-val'; out.style.cursor = 'default';
+        out.textContent = gst.amt + '%';
+        amt.addEventListener('input', (e) => {
+          e.stopPropagation();
+          AR.groove.setAmount(t, parseInt(amt.value, 10));
+          out.textContent = amt.value + '%';
+        });
+        // Commit (re-render grid arrows + persist) only on release, so the
+        // panel isn't rebuilt mid-drag.
+        amt.addEventListener('change', (e) => { e.stopPropagation(); refreshAfterEdit(); });
+        amt.addEventListener('click', (e) => e.stopPropagation());
+        grGrp.appendChild(amt);
+        grGrp.appendChild(out);
+
+        const zero = document.createElement('span');
+        zero.className = 'ts-arrow'; zero.textContent = 'Zero µT';
+        zero.title = 'Clear all micro-timing on this track';
+        zero.addEventListener('click', (e) => {
+          e.stopPropagation();
+          AR.groove.resetMicro(t);
+          refreshAfterEdit();
+        });
+        grGrp.appendChild(zero);
+
+        panel.appendChild(grGrp);
+      }
+
       // Close button (at end, pushed right by margin-left:auto)
       const closeBtn = document.createElement('span');
       closeBtn.className = 'ts-close';

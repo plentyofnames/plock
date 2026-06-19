@@ -58,6 +58,9 @@ AR.loadPattern = function(raw, meta, name) {
   P.soundPoolSyx.clear();
   AR.state.requests.pendingSounds.clear();
   AR.state.requests.savePending = false;
+  // Drop any per-track groove baselines — the new pattern's micro-timing
+  // becomes the baseline again on next use.
+  if (AR.groove) AR.groove.resetAll();
   // Defer restart so callers can finish setting up plocks/kit first
   if (wasPlaying) Promise.resolve().then(function () { AR.audio.start(); });
 };

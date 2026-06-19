@@ -829,3 +829,15 @@ button:disabled { opacity: 0.35; cursor: default; }
 }
 .modal-btns { display: flex; justify-content: flex-end; gap: 8px; }
 .modal-primary { border-color: var(--accent); color: var(--accent); }
+
+/* ─── Groove control (track settings panel) ──────────────────────────────── */
+.track-settings-panel .ts-select {
+  background: #0a0a0a; border: 1px solid #3a3a3a; color: var(--fg);
+  font-family: inherit; font-size: 0.85em; padding: 1px 3px;
+  border-radius: 1px; outline: none; cursor: pointer;
+}
+.track-settings-panel .ts-select:focus { border-color: var(--accent); }
+.track-settings-panel .ts-range {
+  width: 80px; accent-color: var(--accent); cursor: pointer; vertical-align: middle;
+}
+.track-settings-panel .ts-range:disabled { opacity: 0.35; cursor: default; }

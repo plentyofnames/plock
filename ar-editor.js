@@ -778,11 +778,20 @@ var setStatus = AR.setStatus;
 
         const sel = document.createElement('select');
         sel.className = 'ts-select';
-        for (const tpl of AR.groove.templates()) {
-          const o = document.createElement('option');
-          o.value = tpl.key; o.textContent = tpl.name;
-          if (tpl.key === gst.tpl) o.selected = true;
-          sel.appendChild(o);
+        for (const g of AR.groove.groups()) {
+          let parent = sel;
+          if (g.label) {
+            const og = document.createElement('optgroup');
+            og.label = g.label;
+            sel.appendChild(og);
+            parent = og;
+          }
+          for (const item of g.items) {
+            const o = document.createElement('option');
+            o.value = item.key; o.textContent = item.name;
+            if (item.key === gst.tpl) o.selected = true;
+            parent.appendChild(o);
+          }
         }
         sel.addEventListener('change', (e) => {
           e.stopPropagation();
@@ -791,8 +800,9 @@ var setStatus = AR.setStatus;
         });
         grGrp.appendChild(sel);
 
+        const isPull = AR.groove.kindOf(gst.tpl) === 'pull';
         const amt = document.createElement('input');
-        amt.type = 'range'; amt.min = '0'; amt.max = '100'; amt.step = '1';
+        amt.type = 'range'; amt.min = isPull ? '-100' : '0'; amt.max = '100'; amt.step = '1';
         amt.value = String(gst.amt);
         amt.className = 'ts-range';
         amt.disabled = gst.tpl === 'none';

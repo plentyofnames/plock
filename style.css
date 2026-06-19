@@ -796,3 +796,36 @@ button:disabled { opacity: 0.35; cursor: default; }
 .log-entry     { color: var(--muted); white-space: pre; }
 .log-entry.ok  { color: #5cb85c; }
 .log-entry.err { color: #d9534f; }
+
+/* ─── MIDI export dialog ─────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-panel {
+  background: var(--surface); border: 1px solid #3a3a3a; border-radius: 4px;
+  padding: 20px 22px; max-width: 460px; width: calc(100% - 40px);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+.modal-title { color: var(--accent); font-size: 1.1em; margin-bottom: 8px; }
+.modal-desc  { color: var(--muted); font-size: 0.8em; line-height: 1.5; margin-bottom: 14px; }
+.midi-map-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; margin-bottom: 14px;
+}
+.midi-map-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: text; }
+.midi-map-name { color: var(--fg); font-size: 0.9em; }
+.midi-map-input {
+  width: 64px; background: #0a0a0a; border: 1px solid #3a3a3a; color: var(--fg);
+  font-family: inherit; font-size: 0.9em; padding: 2px 5px; border-radius: 2px;
+  text-align: center; outline: none;
+}
+.midi-map-input:focus { border-color: var(--accent); }
+.midi-opts { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 18px; }
+.midi-opt  { color: var(--fg); font-size: 0.85em; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.midi-chan select {
+  background: #0a0a0a; border: 1px solid #3a3a3a; color: var(--fg);
+  font-family: inherit; padding: 2px 4px; border-radius: 2px; outline: none;
+}
+.modal-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-primary { border-color: var(--accent); color: var(--accent); }
